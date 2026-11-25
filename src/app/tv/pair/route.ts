@@ -21,9 +21,22 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const { error: sessionError } = await admin.from("display_sessions").insert({ device_id: device.id, token_hash: tokenHash, expires_at: expiresAt.toISOString() });
     if (sessionError) { await admin.from("display_devices").delete().eq("id", device.id); throw sessionError; }
-    const envelope = Buffer.from(JSON.stringify({ eventId: body.eventId, deviceId: device.id, sessionToken }), "utf8").toString("base64url");
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const random = randomBytes(10);
+    const pairingCode = Array.from(random, (value) => alphabet[value % alphabet.length]).join("");
+    const codeHash = createHash("sha256").update(pairingCode).digest("hex");
+    const pairingExpiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+    const { error: codeError } = await admin.from("display_pairing_codes").insert({
+      device_id: device.id,
+      code_hash: codeHash,
+      expires_at: pairingExpiresAt.toISOString(),
+    });
+    if (codeError) {
+      await admin.from("display_devices").delete().eq("id", device.id);
+      throw codeError;
+    }
     const origin = process.env.APP_URL?.replace(/\/$/, "") || request.nextUrl.origin;
-    return NextResponse.json({ deviceId: device.id, expiresAt: expiresAt.toISOString(), pairingUrl: `${origin}/tv#pairing=${envelope}` }, { headers: { "Cache-Control": "no-store, private" } });
+    return NextResponse.json({ deviceId: device.id, expiresAt: pairingExpiresAt.toISOString(), pairingCode, pairingUrl: `${origin}/tv/p/${pairingCode}` }, { headers: { "Cache-Control": "no-store, private" } });
   } catch (error) {
     console.error("Display pairing failed", error);
     return NextResponse.json({ error: "PAIRING_FAILED" }, { status: 503 });
