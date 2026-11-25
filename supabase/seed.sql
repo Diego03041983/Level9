@@ -1,4 +1,5 @@
 -- Demo-only data. Fixed IDs make the seed repeatable and easy to reset safely.
+-- This file contains no real child data, photos, guardian names or credentials.
 insert into public.events (id, name, subtitle, celebrant_name, celebrant_age, starts_at, ends_at, timezone, status, is_demo)
 values ('10000000-0000-4000-8000-000000000001', 'Santiago Level 9', 'Gamer Party', 'Santiago', 9,
         '2026-11-29 19:00:00+00', '2026-11-29 22:00:00+00', 'America/Argentina/Cordoba', 'ready', true)
@@ -73,6 +74,7 @@ on conflict (event_id, code) do nothing;
 
 insert into public.missions (id, event_id, name, story, secret_code_hash, duration_seconds, status)
 values ('60000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','Misión Robux Secreta',
-        'Glitch robó los Robux ficticios. Completen las pruebas para recuperar el código.', crypt('2909', gen_salt('bf')), 1800, 'ready')
+        'Glitch robó los Robux ficticios. Completen las pruebas para recuperar el código.',
+        extensions.crypt('2909', extensions.gen_salt('bf')), 1800, 'ready')
 on conflict (id) do nothing;
 

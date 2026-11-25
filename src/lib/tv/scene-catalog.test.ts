@@ -1,0 +1,3 @@
+import {describe,expect,it} from "vitest";
+import {sceneCatalog} from "./scene-catalog";
+describe("mandatory TV scene catalog",()=>{it("contains exactly the 25 required unique scenes",()=>{expect(sceneCatalog).toHaveLength(25);expect(new Set(sceneCatalog.map(scene=>scene.type)).size).toBe(25)});it("has safe operational durations and priorities",()=>{for(const scene of sceneCatalog){expect(scene.durationMs).toBeGreaterThanOrEqual(1000);expect(scene.durationMs).toBeLessThanOrEqual(600000);expect(scene.priority).toBeGreaterThanOrEqual(0);expect(scene.priority).toBeLessThanOrEqual(100)}})});

@@ -1,14 +1,56 @@
-"use client";
-import {useState} from "react";
-import {AppShell} from "@/components/ui/AppShell";
-import {PlayerBadge} from "@/components/ui/PlayerBadge";
+import { redirect } from "next/navigation";
+import { AdminDashboard } from "./AdminDashboard";
+import { EventSetupForm } from "./EventSetupForm";
+import { createClient } from "@/lib/supabase/server";
 
-const players=["Santiago","Mateo","Benjamín","Felipe","Joaquín"];
-const stats=[{label:"Jugadores activos",value:"14",meta:"14 registrados",tone:"text-cyan-300"},{label:"Estaciones",value:"4/5",meta:"1 disponible",tone:"text-lime-300"},{label:"Partidos",value:"06",meta:"3 pendientes",tone:"text-violet-300"},{label:"Tiempo restante",value:"2:18",meta:"Finales · 18:30",tone:"text-yellow-300"}];
+export const instant = false;
 
-export default function AdminPage(){const [feed,setFeed]=useState("Panel sincronizado · Todo listo");const [muted,setMuted]=useState(false);const action=(message:string)=>setFeed(message);return <AppShell active="admin"><div className="mx-auto w-full max-w-[1500px] px-5 pb-20 md:px-8"><div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="eyebrow">Operations deck · En vivo</p><h1 className="mt-2 text-4xl font-black tracking-tight md:text-5xl">CENTRO DE CONTROL</h1></div><div className="flex items-center gap-3 rounded-full border border-lime-300/20 bg-lime-300/5 px-4 py-2 text-xs font-bold text-lime-200"><i className="status-dot"/> TV conectada · Audio {muted?"silenciado":"activo"}</div></div>
-<section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map((stat)=><article key={stat.label} className="panel cut p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">{stat.label}</p><strong className={`mt-3 block font-mono text-4xl ${stat.tone}`}>{stat.value}</strong><small className="mt-3 block text-slate-500">{stat.meta}</small></article>)}</section>
-<section className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_.65fr]"><div className="panel cut p-5 md:p-7"><div className="flex items-center justify-between"><div><p className="eyebrow">Live operation</p><h2 className="mt-2 text-2xl font-black">ACTIVIDAD ACTUAL</h2></div><span className="rounded bg-red-500/15 px-3 py-1 font-mono text-[10px] font-bold text-red-300">● LIVE</span></div><div className="mt-6 grid gap-5 rounded-xl border border-white/8 bg-black/15 p-5 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="text-xs font-bold text-cyan-300">FIFA LEGENDS CUP · CUARTOS</p><div className="mt-4 flex items-center gap-3"><PlayerBadge name="Santiago" number={9} color="cyan"/><div><b className="block">Santiago vs. Mateo</b><small className="text-slate-400">PlayStation 01 · 03:22 restantes</small></div></div></div><div className="flex items-center gap-4 font-mono text-4xl font-black"><span>2</span><span className="text-sm text-slate-600">—</span><span>1</span></div></div><div className="mt-5 grid gap-2 sm:grid-cols-3"><button onClick={()=>action("Marcador abierto para edición rápida")} className="primary-action px-4 py-3 text-xs">Registrar resultado</button><button onClick={()=>action("Partido pausado; cronómetro detenido")} className="ghost-action px-4 py-3 text-xs">Pausar partido</button><button onClick={()=>action("VS enviado a la cola del Smart TV")} className="ghost-action px-4 py-3 text-xs">Mostrar VS en TV</button></div></div>
-<aside className="panel cut p-5 md:p-7"><p className="eyebrow">Coming up</p><h2 className="mt-2 text-2xl font-black">PRÓXIMOS</h2><div className="mt-5 space-y-3">{[["16:32","FIFA · Cuartos","Felipe vs. Joaquín"],["16:35","Roblox · Ronda 2","PC Gaming 01–03"],["16:42","Metegol Duo","Equipo Neon vs. Pixel"]].map(([time,title,meta])=><button key={time} onClick={()=>action(`${title} seleccionado`)} className="w-full rounded-lg border border-white/8 bg-white/[.025] p-4 text-left transition hover:border-cyan-300/30"><span className="font-mono text-xs font-black text-cyan-300">{time}</span><b className="mt-1 block text-sm">{title}</b><small className="text-slate-500">{meta}</small></button>)}</div></aside></section>
-<section className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]"><div className="panel cut p-5"><div className="flex items-center justify-between"><h2 className="font-black">ROSTER ACTIVO</h2><button onClick={()=>action("Lista de participantes abierta")} className="text-xs font-bold text-cyan-300">Ver todos →</button></div><div className="mt-4 flex flex-wrap gap-2">{players.map((name,i)=><button onClick={()=>action(`${name} seleccionado`)} key={name} className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[.025] p-2 pr-4 text-sm font-bold hover:border-cyan-300/30"><PlayerBadge name={name} number={i+9} color={i%2?"violet":"cyan"}/>{name}</button>)}</div></div><div className="panel cut p-5"><h2 className="font-black">ACCIONES RÁPIDAS</h2><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><button onClick={()=>action("Check-in preparado en nueva estación")} className="ghost-action px-3 py-4 text-xs">+ Jugador</button><button onClick={()=>action("Motor de sorteo listo para configurar")} className="ghost-action px-3 py-4 text-xs">◈ Sorteo</button><button onClick={()=>action("Anuncio añadido a la cola audiovisual")} className="ghost-action px-3 py-4 text-xs">▱ Anuncio</button><button onClick={()=>{setMuted(v=>!v);setFeed(muted?"Audio del TV activado":"Audio del TV silenciado")}} className="ghost-action px-3 py-4 text-xs">{muted?"♫ Activar":"♪ Silenciar"}</button></div></div></section>
-<div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-cyan-300/25 bg-slate-950/95 px-5 py-3 text-xs font-bold text-slate-200 shadow-2xl">{feed}</div></div></AppShell>}
+type Membership = {
+  event_id: string;
+  role: string;
+  events: { name: string; subtitle: string | null } | { name: string; subtitle: string | null }[];
+};
+
+export default async function AdminPage() {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect("/login?next=/admin");
+
+  const { data, error } = await supabase
+    .from("event_users")
+    .select("event_id, role, events!inner(name, subtitle)")
+    .eq("user_id", auth.user.id)
+    .in("role", ["owner", "admin", "operator"])
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-950 p-6 text-white">
+        <section className="panel cut max-w-xl p-8">
+          <p className="eyebrow">Configuración pendiente</p>
+          <h1 className="mt-3 text-3xl font-black">NO SE PUDO ABRIR EL EVENTO</h1>
+          <p className="mt-4 text-slate-300">La base de datos respondió con un error. Revisá que las migraciones estén instaladas y volvé a intentar.</p>
+          <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">{error.message}</p>
+        </section>
+      </main>
+    );
+  }
+
+  const membership = data as unknown as Membership | null;
+  if (!membership) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-950 p-6 text-white">
+        <section className="panel cut max-w-xl p-8">
+          <p className="eyebrow">Acceso protegido</p>
+          <h1 className="mt-3 text-3xl font-black">FALTA ASIGNAR ESTE OPERADOR</h1>
+          <p className="mt-4 text-slate-300">Esta cuenta todavía no tiene un evento. Creá ahora la instancia real; quedará asignada como dueña.</p>
+          <EventSetupForm />
+        </section>
+      </main>
+    );
+  }
+
+  const event = Array.isArray(membership.events) ? membership.events[0] : membership.events;
+  return <AdminDashboard eventId={membership.event_id} eventName={event?.name ?? "Level 9"} eventSubtitle={event?.subtitle ?? null} role={membership.role} />;
+}

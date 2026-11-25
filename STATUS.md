@@ -2,46 +2,31 @@
 
 Actualizado: 25 de noviembre de 2026.
 
-## Estado general
+## Implementado y verificado
 
-**Demo pública desplegada; integración de datos de producción pendiente.**
+- Supabase de producción con migraciones versionadas, Auth, RLS, Realtime y Storage privado.
+- Alta segura de la primera cuenta y creación del evento real, actividades, estaciones, agenda y logros.
+- `/admin` conectado a datos reales, estado de TV, cola audiovisual, anuncios y versus.
+- `/admin/players`, `/admin/activities`, `/admin/teams`, `/admin/draws`, `/admin/tournaments`, `/admin/schedule` y `/admin/display` con operaciones persistentes.
+- `/checkin` con foto comprimida, consentimiento, avatar alternativo, XP y escena automática.
+- `/tv` con pairing revocable, polling seguro, heartbeat, ACK, cola, escenas, MP3 reales, mute y volumen.
+- `/mission` valida el código exclusivamente mediante RPC de Supabase y encola la celebración.
+- Motor de sorteos y torneo eliminatorio con pases directos; resultados confirmados avanzan al ganador.
+- 17 efectos originales MP3/WAV y manifiesto reproducible.
+- Pruebas, lint, TypeScript estricto y build de producción ejecutados antes del despliegue.
 
-## Verificado
+## Separación y privacidad
 
-- Brief funcional completo leído (1.429 líneas).
-- Repositorio Git existente y sin commits previos.
-- Node.js 24.15.0 y npm 11.12.1 disponibles.
-- Documentación oficial vigente de Next.js, Supabase SSR, Motion y Playwright consultada.
-- Coordinación Ruflo inicializada para el trabajo multiarchivo.
-- Next.js 16.4.6 con App Router, React 19.3 y TypeScript estricto.
-- Interfaces `/`, `/admin`, `/checkin`, `/tv`, `/mission` y `/login`.
-- PRESS START, Web Audio, escenas TV, acciones del dashboard, check-in local y terminal de misión.
-- Validación de misión en backend; código demo `2909` sólo cuando el modo demo está habilitado.
-- Motor puro de sorteos, llaves, escenas y XP con 10 pruebas unitarias.
-- Migración Supabase con 40 tablas, 43 políticas RLS, RPC transaccionales y seed demo de 14 jugadores.
-- 17 efectos originales generados en MP3 y WAV con manifiesto.
-- `lint`, `typecheck`, 10 tests y build de producción aprobados.
-- Revisión manual en navegador: dashboard, pausa de partido, PRESS START/escena TV y desbloqueo de misión.
-- Repositorio publicado y conectado a Vercel: `Diego03041983/Level9`.
-- Producción verificada con HTTP 200 en `/`, `/admin`, `/checkin`, `/tv` y `/mission`.
-- URL pública: `https://level9-nu.vercel.app`.
+- Producción no contiene el seed demo.
+- Fotografías en bucket privado; el TV recibe únicamente URLs firmadas de corta duración.
+- Clave service-role configurada sólo como secreto de Vercel.
+- Acceso administrativo y de check-in protegido por Auth y roles del evento.
 
-## En curso
+## Validación física pendiente
 
-- Conectar los flujos visuales al proyecto Supabase real y a Realtime.
-- Completar administración CRUD, carga privada de fotos y operaciones transaccionales.
-- Completar torneos/resultados, control audiovisual persistente, misión editable y E2E.
+- Probar control remoto, audio y navegador en el modelo exacto de Smart TV.
+- Registrar invitados y fotografías reales únicamente con autorización del responsable.
 
-## Pendiente de intervención externa
+## URL
 
-- Crear o proporcionar proyecto Supabase y variables de entorno.
-- Probar compatibilidad y control remoto en el Smart TV físico.
-- Cargar fotografías reales únicamente con consentimiento.
-
-## Limitaciones actuales
-
-- La migración SQL no pudo ejecutarse: no hay Supabase CLI/PostgreSQL local ni proyecto remoto autorizado.
-- El check-in visual usa estado local; la cámara/subida privada aún debe conectarse a Storage.
-- Las escenas y resultados demo todavía no se sincronizan entre dispositivos mediante Realtime.
-- No se ejecutaron Playwright ni pruebas en el Smart TV físico.
-- El alcance completo de 34 secciones sigue siendo trabajo de varias fases; este corte no se declara producto terminado.
+- Producción: https://level9-nu.vercel.app
