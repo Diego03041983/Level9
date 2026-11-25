@@ -13,11 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://level9-nu.vercel.app"),
   title: {
     default: "Santiago Level 9 · Gamer Party",
     template: "%s · Santiago Level 9",
   },
   description: "Game Center privado para Santiago Level 9.",
+  icons: { icon: "/assets/branding/santiago-gamer.png", apple: "/assets/branding/santiago-gamer.png" },
+  openGraph: {
+    title: "Santiago Level 9 · Gamer Party",
+    description: "El Game Center del cumpleaños gamer de Santiago.",
+    images: [{ url: "/assets/branding/santiago-gamer.png", width: 1254, height: 1254, alt: "Santiago gamer" }],
+  },
   robots: { index: false, follow: false, nocache: true },
 };
 
