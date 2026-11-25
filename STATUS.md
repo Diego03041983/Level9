@@ -4,7 +4,7 @@ Actualizado: 25 de noviembre de 2026.
 
 ## Estado general
 
-**Vertical slice local verificado; integración de producción pendiente.** El repositorio estaba vacío al comenzar. No existe despliegue ni credenciales configuradas.
+**Demo pública desplegada; integración de datos de producción pendiente.**
 
 ## Verificado
 
@@ -22,6 +22,9 @@ Actualizado: 25 de noviembre de 2026.
 - 17 efectos originales generados en MP3 y WAV con manifiesto.
 - `lint`, `typecheck`, 10 tests y build de producción aprobados.
 - Revisión manual en navegador: dashboard, pausa de partido, PRESS START/escena TV y desbloqueo de misión.
+- Repositorio publicado y conectado a Vercel: `Diego03041983/Level9`.
+- Producción verificada con HTTP 200 en `/`, `/admin`, `/checkin`, `/tv` y `/mission`.
+- URL pública: `https://level9-nu.vercel.app`.
 
 ## En curso
 
@@ -32,13 +35,11 @@ Actualizado: 25 de noviembre de 2026.
 ## Pendiente de intervención externa
 
 - Crear o proporcionar proyecto Supabase y variables de entorno.
-- Autorizar/configurar repositorio GitHub y proyecto Vercel.
 - Probar compatibilidad y control remoto en el Smart TV físico.
 - Cargar fotografías reales únicamente con consentimiento.
 
 ## Limitaciones actuales
 
-- Aún no hay URL pública.
 - La migración SQL no pudo ejecutarse: no hay Supabase CLI/PostgreSQL local ni proyecto remoto autorizado.
 - El check-in visual usa estado local; la cámara/subida privada aún debe conectarse a Storage.
 - Las escenas y resultados demo todavía no se sincronizan entre dispositivos mediante Realtime.

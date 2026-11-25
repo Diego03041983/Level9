@@ -2,6 +2,8 @@
 
 Centro de operaciones gamer para el cumpleaños de Santiago: check-in, competencias, misión secreta y presentación audiovisual para Smart TV.
 
+Demo pública: [level9-nu.vercel.app](https://level9-nu.vercel.app)
+
 ## Inicio local
 
 Requisitos: Node.js 20.9+, npm y Python 3. FFmpeg es opcional para regenerar MP3.
