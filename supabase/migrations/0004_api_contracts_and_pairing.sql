@@ -41,7 +41,7 @@ begin
     raise exception 'guardian confirmation is required for photos' using errcode = '23514';
   end if;
   if p_photo_path is not null and p_photo_path !~
-    ('^' || p_event_id::text || '/participants/[0-9a-fA-F-]{36}\\.jpg$') then
+    ('^' || p_event_id::text || '/participants/[0-9a-fA-F-]{36}[.]jpg$') then
     raise exception 'invalid private photo path' using errcode = '22023';
   end if;
 
