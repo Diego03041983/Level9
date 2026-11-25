@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "license": "Original project assets; private event use",
+  "generator": "scripts/generate_audio.py",
+  "assets": [
+    { "name": "intro", "duration": 2.4, "type": "sfx", "volume": 0.72, "loop": false },
+    { "name": "ambient-loop", "duration": 4.0, "type": "music", "volume": 0.22, "loop": true },
+    { "name": "player-unlocked", "duration": 1.2, "type": "sfx", "volume": 0.65, "loop": false },
+    { "name": "roulette-loop", "duration": 1.6, "type": "sfx", "volume": 0.45, "loop": true },
+    { "name": "player-selected", "duration": 0.8, "type": "sfx", "volume": 0.62, "loop": false },
+    { "name": "team-selected", "duration": 1.0, "type": "sfx", "volume": 0.62, "loop": false },
+    { "name": "versus-impact", "duration": 0.7, "type": "sfx", "volume": 0.7, "loop": false },
+    { "name": "countdown-tick", "duration": 0.25, "type": "sfx", "volume": 0.52, "loop": false },
+    { "name": "match-start", "duration": 1.0, "type": "sfx", "volume": 0.66, "loop": false },
+    { "name": "victory", "duration": 1.8, "type": "sfx", "volume": 0.68, "loop": false },
+    { "name": "mission-alert", "duration": 1.2, "type": "sfx", "volume": 0.58, "loop": false },
+    { "name": "access-denied", "duration": 0.9, "type": "sfx", "volume": 0.54, "loop": false },
+    { "name": "access-granted", "duration": 1.4, "type": "sfx", "volume": 0.67, "loop": false },
+    { "name": "treasure-unlocked", "duration": 2.2, "type": "sfx", "volume": 0.7, "loop": false },
+    { "name": "champion", "duration": 2.5, "type": "sfx", "volume": 0.74, "loop": false },
+    { "name": "notification", "duration": 0.45, "type": "sfx", "volume": 0.45, "loop": false },
+    { "name": "birthday-celebration", "duration": 3.0, "type": "music", "volume": 0.7, "loop": false }
+  ]
+}
