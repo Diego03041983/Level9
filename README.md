@@ -33,4 +33,3 @@ No se versionan claves privadas. `SUPABASE_SERVICE_ROLE_KEY` sólo puede utiliza
 - [Configuración Supabase](./docs/SUPABASE.md)
 - [Despliegue](./docs/DEPLOYMENT.md)
 - [Operación](./docs/OPERATIONS.md)
-
