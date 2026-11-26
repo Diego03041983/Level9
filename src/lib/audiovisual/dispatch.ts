@@ -60,12 +60,17 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
     const relation=assignment?.media_assets as unknown as AssetRelation|AssetRelation[]|null|undefined;
     videoPath=Array.isArray(relation)?relation[0]?.storage_path:relation?.storage_path;
   }
+  if(!videoPath){
+    const characterVideoKey=announcement.template.character_name.toLowerCase().includes("glitch")?"character-glitch-video":"character-nexus-video";
+    const {data:characterVideo}=await supabase.from("media_assets").select("storage_path").eq("event_id",input.eventId).eq("logical_key",characterVideoKey).eq("status","active").maybeSingle();
+    videoPath=characterVideo?.storage_path;
+  }
   const {data:players}=input.context.participantIds.length?await supabase.from("participants").select("id,first_name,last_name,gamer_tag,player_number,photo_path").eq("event_id",input.eventId).in("id",input.context.participantIds):{data:[]};
   const orderedPlayers=input.context.participantIds.map(id=>(players??[]).find(player=>player.id===id)).filter((player):player is NonNullable<typeof player>=>Boolean(player));
   const displayPlayers=orderedPlayers.map(player=>({name:player.first_name,gamerTag:player.gamer_tag,number:player.player_number,photoPath:player.photo_path}));
   const featuredPlayer=displayPlayers[0];
-  const payload={eventKey:input.eventKey,title:input.context.title??definition.label,subtitle:input.context.subtitle,activity:input.context.activity,station:input.context.station,round:input.context.round,character:announcement.template.character_name,rehearsal:input.rehearsal,degraded:announcement.degraded,missingAudio:announcement.missing,players:displayPlayers,player:definition.sceneType==="PLAYER_UNLOCKED"?featuredPlayer:undefined,winner:["MATCH_RESULT","CHAMPION_REVEAL"].includes(definition.sceneType)?featuredPlayer:undefined,videoPath,state:input.eventKey==="MISSION_BREACH"?"NEXUS_SYSTEM_BREACH":undefined};
-  const durationMs=Math.max(announcement.durationMs,videoPath?47_840:0,6000);
+  const payload={eventKey:input.eventKey,title:input.context.title??definition.label,subtitle:input.context.subtitle,activity:input.context.activity,station:input.context.station,round:input.context.round,character:announcement.template.character_name,rehearsal:input.rehearsal,degraded:announcement.degraded,missingAudio:announcement.missing,players:displayPlayers,player:definition.sceneType==="PLAYER_UNLOCKED"?featuredPlayer:undefined,winner:["MATCH_RESULT","CHAMPION_REVEAL"].includes(definition.sceneType)?featuredPlayer:undefined,videoPath,videoLoop:Boolean(videoPath),state:input.eventKey==="MISSION_BREACH"?"NEXUS_SYSTEM_BREACH":undefined};
+  const durationMs=Math.max(announcement.durationMs,6000);
   const {data:scene,error:sceneError}=await supabase.from("scene_events").insert({event_id:input.eventId,scene_type:definition.sceneType,payload,priority:definition.priority,duration_ms:durationMs,sound:{sequence:announcement.sequence,totalDurationMs:announcement.durationMs},animation:{preset:input.eventKey.startsWith("MISSION_")?"glitch":"nexus",reducedMotionSafe:true},interrupt_policy:scenePolicy(definition.policy),status:"queued",target_device_id:input.targetDeviceId??null,idempotency_key:`av:${eventRecord.id}`,created_by:input.userId}).select("id").single();
   if(sceneError||!scene){await supabase.from("audiovisual_events").update({status:"failed",error_message:sceneError?.message??"No se pudo crear la escena"}).eq("id",eventRecord.id);throw sceneError??new Error("No se pudo crear la escena")}
   await supabase.from("audiovisual_events").update({status:"queued",scene_event_id:scene.id}).eq("id",eventRecord.id);

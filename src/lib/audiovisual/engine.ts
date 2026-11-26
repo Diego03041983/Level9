@@ -15,6 +15,7 @@ const player=(index:number,role="name"):SegmentSeed=>({type:"participant_audio",
 const gap=(durationMs=160):SegmentSeed=>({type:"silence",config:{durationMs},optional:true});
 
 const dynamicTemplates:TemplateSeed[]=[
+  {key:"MISSION_BREACH",name:"Intervención de Glitch",category:"mission",character:"Glitch",sceneType:"NEXUS_SYSTEM_BREACH",priority:100,policy:"interrupt",segments:[fixed("anomaly-detected"),gap(400),fixed("glitch-mission-intro")]},
   {key:"MATCH_CALLED",name:"Próximo partido FIFA",category:"competitions",character:"Nexus-9",sceneType:"VERSUS_SCREEN",priority:50,policy:"queue",segments:[fixed("fifa-next-match"),gap(),player(0),gap(),fixed("versus"),gap(),player(1),gap(),fixed("playstation-call")]},
   {key:"METEGOL_NEXT_MATCH",name:"Próximo partido de metegol",category:"competitions",character:"Nexus-9",sceneType:"DUO_VERSUS_SCREEN",priority:50,policy:"queue",segments:[fixed("metegol-next-match"),gap(),fixed("team-one"),gap(),player(0),gap(),fixed("and"),gap(),player(1),gap(),fixed("versus"),gap(),fixed("team-two"),gap(),player(2),gap(),fixed("and"),gap(),player(3),gap(),fixed("metegol-call")]},
   {key:"ROBLOX_PLAYERS_CALLED",name:"Convocatoria Roblox",category:"roblox",character:"Nexus-9",sceneType:"PLAYER_ROSTER",priority:50,policy:"queue",segments:[fixed("roblox-challenge"),gap(),fixed("roblox-players"),gap(),player(0),gap(),player(1),gap(),fixed("and"),gap(),player(2),gap(),fixed("roblox-stations")]},
@@ -32,10 +33,10 @@ const audioKeyForEvent:Record<string,string>={
   MISSION_BREACH:"anomaly-detected",MISSION_TEAM_DRAW:"glitch-team-draw",MISSION_STARTED:"glitch-mission-start",MISSION_WARNING:"glitch-5-minutes",MISSION_CLUE_UNLOCKED:"glitch-clue-unlocked",MISSION_FINAL_CODE:"glitch-final-code",MISSION_ACCESS_DENIED:"access-denied",MISSION_ACCESS_GRANTED:"access-granted",MISSION_COMPLETED:"access-granted",MISSION_TIME_EXTENSION:"glitch-time-extension",NEXUS_RESTORED:"system-restored",
 };
 
-const defaultTemplates:TemplateSeed[]=[...audiovisualEventCatalog.map(definition=>({
+const defaultTemplates:TemplateSeed[]=[...dynamicTemplates,...audiovisualEventCatalog.map(definition=>({
   key:definition.templateKey,name:definition.label,category:definition.category,character:definition.category==="mission"&&definition.key!=="NEXUS_RESTORED"?"Glitch":"Nexus-9",sceneType:definition.sceneType,priority:definition.priority,policy:definition.policy,
   segments:audioKeyForEvent[definition.key]?[fixed(audioKeyForEvent[definition.key])]:[],
-})),...dynamicTemplates].filter((template,index,all)=>all.findIndex(item=>item.key===template.key)===index);
+}))].filter((template,index,all)=>all.findIndex(item=>item.key===template.key)===index);
 
 const durationFromMetadata=(metadata:unknown)=>{
   if(!metadata||typeof metadata!=="object"||Array.isArray(metadata))return 0;

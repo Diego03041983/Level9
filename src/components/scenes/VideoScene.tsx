@@ -10,9 +10,11 @@ interface VideoSceneProps {
   volume: number;
   onEnded: () => void;
   onError: (message: string) => void;
+  loop?: boolean;
+  showTitle?: boolean;
 }
 
-export function VideoScene({ src, title, paused, muted, volume, onEnded, onError }: VideoSceneProps) {
+export function VideoScene({ src, title, paused, muted, volume, onEnded, onError, loop=false, showTitle=true }: VideoSceneProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -43,15 +45,16 @@ export function VideoScene({ src, title, paused, muted, volume, onEnded, onError
         autoPlay
         playsInline
         preload="auto"
+        loop={loop}
         disablePictureInPicture
         onEnded={onEnded}
         onError={() => onError("No se pudo cargar el video del desafío Robux")}
         className="h-full w-full object-contain"
       />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+      {showTitle&&<><div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
       <p className="pointer-events-none absolute bottom-5 left-6 font-mono text-xs font-black uppercase tracking-[.22em] text-cyan-200/80">
         {title}
-      </p>
+      </p></>}
     </div>
   );
 }
