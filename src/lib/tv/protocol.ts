@@ -21,6 +21,7 @@ export interface ScenePayload {
   imageUrl?: string;
   videoUrl?: string;
   videoLoop?: boolean;
+  sessionId?: string;
   participantId?: string;
   firstName?: string;
   lastName?: string;
@@ -47,6 +48,11 @@ export interface DisplayScene extends Omit<SceneEventRow, "payload" | "sound" | 
   payload: ScenePayload;
   sound: { name?: string; url?: string; volume?: number; loop?: boolean; cueMs?: number };
   animation: Record<string, Json | undefined>;
+}
+
+export interface DisplayPlaybackQueue {
+  current: DisplayScene | null;
+  pending: DisplayScene[];
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -101,6 +107,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       imageUrl: safeUrl(raw.imageUrl),
       videoUrl: safeUrl(raw.videoUrl),
       videoLoop: raw.videoLoop === true,
+      sessionId: typeof raw.sessionId === "string" ? raw.sessionId.slice(0, 100) : undefined,
       participantId: typeof raw.participantId === "string" ? raw.participantId : undefined,
       firstName: typeof raw.firstName === "string" ? raw.firstName.slice(0, 80) : undefined,
       lastName: typeof raw.lastName === "string" ? raw.lastName.slice(0, 80) : undefined,
@@ -126,6 +133,50 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       cueMs: typeof rawSound.cueMs === "number" ? Math.min(600000, Math.max(0, rawSound.cueMs)) : undefined,
     },
     animation: rawAnimation,
+  };
+}
+
+const sceneTime = (scene: DisplayScene) => {
+  const createdAt = Date.parse(scene.created_at);
+  if (Number.isFinite(createdAt)) return createdAt;
+  const scheduledAt = Date.parse(scene.scheduled_at);
+  return Number.isFinite(scheduledAt) ? scheduledAt : 0;
+};
+
+export const compareDisplaySceneOrder = (left: DisplayScene, right: DisplayScene) => {
+  const timeDifference = sceneTime(left) - sceneTime(right);
+  if (timeDifference !== 0) return timeDifference;
+  return left.created_at.localeCompare(right.created_at) || left.scheduled_at.localeCompare(right.scheduled_at);
+};
+
+const sameNexusSession = (left: DisplayScene, right: DisplayScene) => {
+  const leftSession = left.scene_type.toUpperCase().startsWith("NEXUS_") ? left.payload.sessionId : undefined;
+  const rightSession = right.scene_type.toUpperCase().startsWith("NEXUS_") ? right.payload.sessionId : undefined;
+  return Boolean(leftSession && rightSession && leftSession === rightSession);
+};
+
+const uniqueScenes = (scenes: DisplayScene[]) => scenes.filter((scene, index, all) => all.findIndex(candidate => candidate.id === scene.id) === index);
+
+export function queueDisplayScene(state: DisplayPlaybackQueue, incoming: DisplayScene): DisplayPlaybackQueue {
+  if (!state.current) return { current: incoming, pending: state.pending };
+  if (state.current.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;
+
+  const sameSessionScenes = [state.current, ...state.pending].filter(scene => sameNexusSession(scene, incoming));
+  const newestSameSession = sameSessionScenes.reduce<DisplayScene | undefined>((newest, scene) => !newest || compareDisplaySceneOrder(scene, newest) > 0 ? scene : newest, undefined);
+  if (newestSameSession && compareDisplaySceneOrder(incoming, newestSameSession) <= 0) return state;
+
+  const pending = sameSessionScenes.length
+    ? state.pending.filter(scene => !sameNexusSession(scene, incoming))
+    : state.pending;
+  const replacesCurrent = sameNexusSession(state.current, incoming);
+  const interrupts = incoming.interrupt_policy === "force"
+    || (incoming.interrupt_policy === "interrupt_lower" && incoming.priority > state.current.priority);
+
+  if (replacesCurrent) return { current: incoming, pending };
+  if (interrupts) return { current: incoming, pending: uniqueScenes([state.current, ...pending]) };
+  return {
+    current: state.current,
+    pending: uniqueScenes([...pending, incoming]).sort((left, right) => right.priority - left.priority || Date.parse(left.scheduled_at) - Date.parse(right.scheduled_at)),
   };
 }
 

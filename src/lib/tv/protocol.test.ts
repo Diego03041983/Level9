@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScene, parsePairing, shouldAcceptScene } from "./protocol";
+import { normalizeScene, parsePairing, queueDisplayScene, shouldAcceptScene, type DisplayScene } from "./protocol";
 import type { SceneEventRow } from "@/types/database";
 
 const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
@@ -22,7 +22,8 @@ describe("TV protocol", () => {
     expect(normalizeScene(row({payload:{videoUrl:"//inseguro.example/video.mp4"}})).payload.videoUrl).toBeUndefined();
   });
   it("normalizes private NEXUS media after server hydration", () => {
-    const scene = normalizeScene(row({scene_type:"NEXUS_IDENTITY_REVEAL",payload:{firstName:"Mateo",playerNumber:7,videoUrl:"https://example.com/video.mp4",videoLoop:true,photoUrl:"https://example.com/photo.jpg"},sound:{url:"https://example.com/name.wav",cueMs:850,volume:.8}}));
+    const scene = normalizeScene(row({scene_type:"NEXUS_IDENTITY_REVEAL",payload:{sessionId:"session-1",firstName:"Mateo",playerNumber:7,videoUrl:"https://example.com/video.mp4",videoLoop:true,photoUrl:"https://example.com/photo.jpg"},sound:{url:"https://example.com/name.wav",cueMs:850,volume:.8}}));
+    expect(scene.payload.sessionId).toBe("session-1");
     expect(scene.payload.firstName).toBe("Mateo");
     expect(scene.payload.videoLoop).toBe(true);
     expect(scene.sound).toMatchObject({url:"https://example.com/name.wav",cueMs:850,volume:.8});
@@ -32,5 +33,25 @@ describe("TV protocol", () => {
     expect(shouldAcceptScene(scene,"30000000-0000-4000-8000-000000000001",new Set([scene.id]))).toBe(false);
     expect(shouldAcceptScene(normalizeScene(row({scheduled_at:new Date(Date.now()-120_000).toISOString()})),"30000000-0000-4000-8000-000000000001",new Set())).toBe(false);
     expect(shouldAcceptScene(normalizeScene(row({status:"playing",scheduled_at:new Date(Date.now()-120_000).toISOString()})),"30000000-0000-4000-8000-000000000001",new Set())).toBe(false);
+  });
+  it("replaces earlier NEXUS stages from the same reception session", () => {
+    const first = normalizeScene(row({id:"10000000-0000-4000-8000-000000000011",scene_type:"NEXUS_NICKNAME_REQUEST",payload:{sessionId:"session-1"},interrupt_policy:"force",created_at:"2026-11-26T12:00:00.000Z"}));
+    const second = normalizeScene(row({id:"10000000-0000-4000-8000-000000000012",scene_type:"NEXUS_WAITING_NICKNAME",payload:{sessionId:"session-1"},interrupt_policy:"force",created_at:"2026-11-26T12:00:01.000Z"}));
+    const third = normalizeScene(row({id:"10000000-0000-4000-8000-000000000013",scene_type:"NEXUS_NICKNAME_CONFIRMED",payload:{sessionId:"session-1"},interrupt_policy:"force",created_at:"2026-11-26T12:00:02.000Z"}));
+    const state = queueDisplayScene(queueDisplayScene({current:first,pending:[]},second),third);
+    expect(state.current?.id).toBe(third.id);
+    expect(state.pending).toEqual([]);
+  });
+  it("ignores a delayed NEXUS response older than the active stage", () => {
+    const older = normalizeScene(row({id:"10000000-0000-4000-8000-000000000021",scene_type:"NEXUS_NICKNAME_REQUEST",payload:{sessionId:"session-1"},interrupt_policy:"force",created_at:"2026-11-26T12:00:00.000Z"}));
+    const newer = normalizeScene(row({id:"10000000-0000-4000-8000-000000000022",scene_type:"NEXUS_WAITING_NICKNAME",payload:{sessionId:"session-1"},interrupt_policy:"force",created_at:"2026-11-26T12:00:01.000Z"}));
+    expect(queueDisplayScene({current:newer,pending:[]},older)).toEqual({current:newer,pending:[]});
+  });
+  it("keeps interrupted scenes from unrelated displays in the queue", () => {
+    const active = normalizeScene(row({id:"10000000-0000-4000-8000-000000000031",scene_type:"MISSION_ALERT"})) as DisplayScene;
+    const incoming = normalizeScene(row({id:"10000000-0000-4000-8000-000000000032",scene_type:"TREASURE_UNLOCKED",interrupt_policy:"force"})) as DisplayScene;
+    const state = queueDisplayScene({current:active,pending:[]},incoming);
+    expect(state.current?.id).toBe(incoming.id);
+    expect(state.pending.map(scene => scene.id)).toEqual([active.id]);
   });
 });
