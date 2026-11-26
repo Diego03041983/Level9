@@ -13,6 +13,7 @@ export const sceneCatalog: readonly SceneTemplate[] = [
   {type:"MATCH_RESULT",label:"Resultado",group:"Competencia",durationMs:12000,priority:70,sound:"victory"},
   {type:"TOURNAMENT_BRACKET",label:"Llave del torneo",group:"Competencia",durationMs:18000,priority:50},
   {type:"ROBLOX_CHALLENGE",label:"Desafío Roblox",group:"Roblox",durationMs:15000,priority:55,sound:"notification"},
+  {type:"ROBUX_CHALLENGE_VIDEO",label:"▶ Iniciar desafío Robux",group:"Roblox",durationMs:131000,priority:95},
   {type:"STATION_STATUS",label:"Estado de estaciones",group:"Roblox",durationMs:15000,priority:40},
   {type:"XP_LEADERBOARD",label:"Ranking XP",group:"Jugadores",durationMs:15000,priority:45},
   {type:"MISSION_ALERT",label:"Alerta de misión",group:"Misión",durationMs:12000,priority:85,sound:"mission-alert"},

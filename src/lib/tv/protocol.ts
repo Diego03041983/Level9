@@ -19,6 +19,7 @@ export interface ScenePayload {
   winner?: DisplayPlayer;
   score?: string;
   imageUrl?: string;
+  videoUrl?: string;
   enabled?: boolean;
   volume?: number;
   action?: "pause" | "resume" | "skip" | "clear_queue";
@@ -54,10 +55,9 @@ export function parsePairing(value: string | null): DisplayPairing | null {
 
 const safeUrl = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
   try {
-    const url = new URL(value, "http://local.invalid");
-    if (url.protocol !== "https:" && !value.startsWith("/")) return undefined;
-    return value;
+    return new URL(value).protocol === "https:" ? value : undefined;
   } catch {
     return undefined;
   }
@@ -89,6 +89,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       activity: typeof raw.activity === "string" ? raw.activity.slice(0, 100) : undefined,
       score: typeof raw.score === "string" ? raw.score.slice(0, 30) : undefined,
       imageUrl: safeUrl(raw.imageUrl),
+      videoUrl: safeUrl(raw.videoUrl),
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : undefined,
       volume: typeof raw.volume === "number" ? Math.min(1, Math.max(0, raw.volume)) : undefined,
       action: ["pause","resume","skip","clear_queue"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
