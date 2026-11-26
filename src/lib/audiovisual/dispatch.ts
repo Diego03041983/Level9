@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { findEventDefinition } from "./catalog";
 import { buildAnnouncement } from "./engine";
 
-type Context={participantIds:string[];title?:string;subtitle?:string;activity?:string;station?:string;round?:string;extra?:Record<string,string|number|boolean|null>};
+type Context={participantIds:string[];title?:string;subtitle?:string;activity?:string;station?:string;round?:string;score?:string;items?:string[];extra?:Record<string,string|number|boolean|null>};
 type DispatchInput={eventId:string;eventKey:string;templateKey?:string;context:Context;rehearsal:boolean;confirm:boolean;targetDeviceId?:string|null;idempotencyKey:string;userId:string};
 
 const scenePolicy=(policy:string)=>policy==="interrupt"||policy==="replace_equivalent"?"force":policy==="resume"?"interrupt_lower":"queue";
@@ -69,7 +69,7 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
   const displayPlayers=orderedPlayers.map(player=>({name:player.first_name,gamerTag:player.gamer_tag,number:player.player_number,photoPath:player.photo_path}));
   const featuredPlayer=displayPlayers[0];
   const usesCombinedBreachMedia=Boolean(videoPath&&combinedBreachAudioPath);
-  const payload={eventKey:input.eventKey,title:input.context.title??definition.label,subtitle:input.context.subtitle,activity:input.context.activity,station:input.context.station,round:input.context.round,character:announcement.template.character_name,rehearsal:input.rehearsal,degraded:usesCombinedBreachMedia?false:announcement.degraded,missingAudio:usesCombinedBreachMedia?[]:announcement.missing,players:displayPlayers,player:definition.sceneType==="PLAYER_UNLOCKED"?featuredPlayer:undefined,winner:["MATCH_RESULT","CHAMPION_REVEAL"].includes(definition.sceneType)?featuredPlayer:undefined,videoPath,videoLoop:Boolean(videoPath)&&!usesCombinedBreachMedia,state:input.eventKey==="MISSION_BREACH"?"NEXUS_SYSTEM_BREACH":undefined};
+  const payload={eventKey:input.eventKey,title:input.context.title??definition.label,subtitle:input.context.subtitle,activity:input.context.activity,station:input.context.station,round:input.context.round,score:input.context.score,items:input.context.items,character:announcement.template.character_name,rehearsal:input.rehearsal,degraded:usesCombinedBreachMedia?false:announcement.degraded,missingAudio:usesCombinedBreachMedia?[]:announcement.missing,players:displayPlayers,player:definition.sceneType==="PLAYER_UNLOCKED"?featuredPlayer:undefined,winner:["MATCH_RESULT","CHAMPION_REVEAL"].includes(definition.sceneType)?featuredPlayer:undefined,videoPath,videoLoop:Boolean(videoPath)&&!usesCombinedBreachMedia,state:input.eventKey==="MISSION_BREACH"?"NEXUS_SYSTEM_BREACH":undefined};
   const durationMs=usesCombinedBreachMedia?178_144:Math.max(announcement.durationMs,6000);
   const sound=usesCombinedBreachMedia?{path:combinedBreachAudioPath,volume:1}:{sequence:announcement.sequence,totalDurationMs:announcement.durationMs};
   const {data:scene,error:sceneError}=await supabase.from("scene_events").insert({event_id:input.eventId,scene_type:definition.sceneType,payload,priority:definition.priority,duration_ms:durationMs,sound,animation:{preset:input.eventKey.startsWith("MISSION_")?"glitch":"nexus",reducedMotionSafe:true},interrupt_policy:scenePolicy(definition.policy),status:"queued",target_device_id:input.targetDeviceId??null,idempotency_key:`av:${eventRecord.id}`,created_by:input.userId}).select("id").single();

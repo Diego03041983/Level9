@@ -22,5 +22,6 @@ button,input { font:inherit; } button { cursor:pointer; } ::selection { backgrou
 .scanline { position:relative; overflow:hidden; } .scanline::after { position:absolute; left:0; right:0; height:2px; content:""; background:linear-gradient(90deg,transparent,var(--cyan),transparent); box-shadow:0 0 14px var(--cyan); animation:scan 3.8s linear infinite; }
 .pulse-ring { animation:pulse-ring 2.4s ease-out infinite; } .float { animation:float 5s ease-in-out infinite; }
 @keyframes scan { from { top:-2%; } to { top:102%; } } @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } } @keyframes pulse-ring { 0% { box-shadow:0 0 0 0 rgb(0 217 255/35%); } 80%,100% { box-shadow:0 0 0 24px transparent; } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(18px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
 
