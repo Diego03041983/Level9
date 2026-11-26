@@ -96,6 +96,9 @@ export async function GET(request: NextRequest) {
     const requestedEvent = request.nextUrl.searchParams.get("eventId");
     if (requestedEvent !== authenticated.device.event_id) return denied();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await authenticated.supabase.from("scene_events").update({ status: "expired" })
+      .eq("event_id", requestedEvent).in("status", ["queued", "delivered", "playing"]).lt("created_at", staleCutoff);
     const { data, error } = await authenticated.supabase.from("scene_events").select("*")
       .eq("event_id", requestedEvent).in("status", ["queued", "delivered", "playing"])
       .gte("created_at", cutoff).lte("scheduled_at", new Date(Date.now() + 30_000).toISOString())

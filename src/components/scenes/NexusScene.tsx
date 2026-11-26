@@ -13,14 +13,14 @@ const titles:Record<string,string>={
   NEXUS_SYSTEM_BREACH:"ANOMALÍA DETECTADA",
 };
 
-export function NexusScene({scene,paused,muted,volume,onEnded}:{scene:DisplayScene;paused:boolean;muted:boolean;volume:number;onEnded:()=>void}){
+export function NexusScene({scene,paused,muted,volume,onEnded,onError}:{scene:DisplayScene;paused:boolean;muted:boolean;volume:number;onEnded:()=>void;onError:(message:string)=>void}){
   const videoRef=useRef<HTMLVideoElement>(null);const [failedVideoUrl,setFailedVideoUrl]=useState<string>();const payload=scene.payload;const state=(payload.state??scene.scene_type.replace(/^NEXUS_/,"")).toUpperCase();
   const videoMuted=shouldMuteNexusVideo(scene,muted);
   useEffect(()=>{const video=videoRef.current;if(!video)return;video.muted=videoMuted;video.volume=Math.min(1,Math.max(0,volume))},[videoMuted,volume]);
-  useEffect(()=>{const video=videoRef.current;if(!video)return;if(paused)video.pause();else void video.play().catch(()=>setFailedVideoUrl(payload.videoUrl))},[paused,payload.videoUrl]);
+  useEffect(()=>{const video=videoRef.current;if(!video)return;if(paused)video.pause();else void video.play().catch(()=>{setFailedVideoUrl(payload.videoUrl);onError("El televisor bloqueó la reproducción del video")})},[onError,paused,payload.videoUrl]);
   const showIdentity=["IDENTITY_REVEAL","NICKNAME_CONFIRMED","PLAYER_UNLOCKED"].includes(state);
   const showPhoto=["AVATAR_PROCESSING","GAMER_CALIBRATION","PLAYER_UNLOCKED"].includes(state)&&payload.photoUrl;
-  if(payload.videoUrl!==undefined&&payload.videoUrl!==failedVideoUrl)return <video ref={videoRef} src={payload.videoUrl} autoPlay muted={videoMuted} playsInline preload="auto" loop={payload.videoLoop} onEnded={()=>{if(!payload.videoLoop)onEnded()}} onError={()=>setFailedVideoUrl(payload.videoUrl)} className="h-full w-full bg-black object-cover"/>;
+  if(payload.videoUrl!==undefined&&payload.videoUrl!==failedVideoUrl)return <video ref={videoRef} src={payload.videoUrl} autoPlay muted={videoMuted} playsInline preload="auto" loop={payload.videoLoop} onEnded={()=>{if(!payload.videoLoop)onEnded()}} onError={()=>{setFailedVideoUrl(payload.videoUrl);onError("No se pudo cargar el video")}} className="h-full w-full bg-black object-cover"/>;
   return <div className="relative h-full w-full overflow-hidden bg-[#080e24] text-center">
     <NexusCore speaking={Boolean(scene.sound.url)}/><div className="absolute inset-0 bg-[radial-gradient(circle,transparent_25%,rgba(8,14,36,.55)_100%)]"/>
     <div className="relative z-10 grid h-full place-items-center px-[5vw] py-[5vh]"><div className="w-full max-w-6xl"><p className="eyebrow">NEXUS-9 · PLAYER ACTIVATION PROTOCOL</p>

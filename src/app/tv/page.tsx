@@ -11,7 +11,7 @@ import type { SceneEventRow } from "@/types/database";
 
 type Ack = (id:string,status:"received"|"started"|"completed"|"failed"|"skipped",error?:string)=>Promise<boolean>;
 
-const preloadSceneVideo=async(url?:string)=>{if(!url)return;const video=document.createElement("video");video.preload="auto";video.muted=true;video.playsInline=true;await new Promise<void>(resolve=>{let settled=false;const done=()=>{if(settled)return;settled=true;window.clearTimeout(timer);video.removeEventListener("canplay",done);video.removeEventListener("error",done);resolve()};const timer=window.setTimeout(done,5000);video.addEventListener("canplay",done,{once:true});video.addEventListener("error",done,{once:true});video.src=url;video.load()});video.removeAttribute("src");video.load()};
+const preloadSceneVideo=async(url?:string)=>{if(!url)return;const video=document.createElement("video");video.preload="auto";video.muted=true;video.playsInline=true;await new Promise<void>(resolve=>{let settled=false;const done=()=>{if(settled)return;settled=true;window.clearTimeout(timer);video.removeEventListener("canplay",done);video.removeEventListener("error",done);resolve()};const timer=window.setTimeout(done,1500);video.addEventListener("canplay",done,{once:true});video.addEventListener("error",done,{once:true});video.src=url;video.load()});video.removeAttribute("src");video.load()};
 
 export default function TvPage(){
   const [started,setStarted]=useState(false);const [{current,pending},setPlaybackQueue]=useState<DisplayPlaybackQueue>({current:null,pending:[]});
@@ -34,7 +34,7 @@ export default function TvPage(){
   useEffect(()=>{if(!started)return;const preload=document.createElement("video");preload.preload="auto";preload.src="/assets/video/desafio-robux-glitch-v1.mp4";preload.load();return()=>{preload.removeAttribute("src");preload.load()}},[started]);
   const start=useCallback(async()=>{try{await unlock();setStarted(true)}catch{setStarted(true)}},[unlock]);
   useEffect(()=>()=>{if(videoEndTimer.current!==null){clearTimeout(videoEndTimer.current);videoEndTimer.current=null}},[current?.id]);
-  const finishVideo=useCallback(()=>{if(!current)return;if(videoEndTimer.current!==null)clearTimeout(videoEndTimer.current);const endedScene=current;videoEndTimer.current=window.setTimeout(()=>{videoEndTimer.current=null;finishScene(endedScene,"completed")},5000)},[current,finishScene]);
+  const finishVideo=useCallback(()=>{if(!current)return;if(videoEndTimer.current!==null)clearTimeout(videoEndTimer.current);const endedScene=current;videoEndTimer.current=window.setTimeout(()=>{videoEndTimer.current=null;finishScene(endedScene,"completed")},pending.length?0:800)},[current,finishScene,pending.length]);
   const failVideo=useCallback((message:string)=>{if(current)finishScene(current,"failed",message)},[current,finishScene]);
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if((event.key==="Enter"||event.key===" ")&&!started&&pairing)void start();if(event.key.toLowerCase()==="m")setMuted(!muted)};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[muted,pairing,setMuted,start,started]);
 
