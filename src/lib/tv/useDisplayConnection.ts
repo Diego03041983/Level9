@@ -64,14 +64,14 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
     const initialRecovery = window.setTimeout(() => void requestState(), 0);
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | undefined;
-    // PostgreSQL Changes honors RLS. A TV with a Supabase display/admin session gets
-    // Realtime; custom display sessions remain on the authenticated server polling path.
+    // Realtime rows contain private storage paths, not the short-lived signed media URLs.
+    // Fetch the authenticated, hydrated scene before delivering it to the player.
     void supabase.auth.getUser().then(({data}) => {
       if (cancelled || !data.user) return;
       channel = supabase.channel(`display:${pairing.eventId}:${pairing.deviceId}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "scene_events", filter: `event_id=eq.${pairing.eventId}` }, (payload) => {
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "scene_events", filter: `event_id=eq.${pairing.eventId}` }, (payload) => {
           const scene = payload.new as SceneEventRow;
-          if (scene?.id) { callback.current(scene); setLastSeen(new Date()); }
+          if (scene?.id && (!scene.target_device_id || scene.target_device_id === pairing.deviceId)) void requestState();
         }).subscribe((channelStatus) => {
           if (channelStatus === "SUBSCRIBED") setStatus("realtime");
           else if (channelStatus === "CHANNEL_ERROR" || channelStatus === "TIMED_OUT") setStatus("polling");
