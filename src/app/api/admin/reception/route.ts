@@ -76,6 +76,35 @@ export async function POST(request: Request) {
       return Response.json({ session: data }, { status: 201 });
     }
 
+    if (operation.action === "pause" || operation.action === "resume") {
+      const idempotencyKey = `reception:${operation.sessionId}:${operation.action}:${randomUUID()}`;
+      const { data: current, error: currentError } = await supabase.from("reception_sessions")
+        .select("id,event_id,display_device_id,protocol_state,status,version")
+        .eq("id", operation.sessionId).eq("event_id", event.id).eq("version", operation.expectedVersion).maybeSingle();
+      if (currentError || !current) throw new AdminApiError(409, "CONTROL_FAILED", "La sesión cambió; actualizando…");
+      const expectedStatus = operation.action === "pause" ? "active" : "paused";
+      if (current.status !== expectedStatus) throw new AdminApiError(409, "CONTROL_FAILED", "La reproducción ya cambió de estado");
+      const nextStatus = operation.action === "pause" ? "paused" : "active";
+      const { data: updated, error: updateError } = await supabase.from("reception_sessions")
+        .update({ status: nextStatus, version: current.version + 1 }).eq("id", current.id).eq("version", current.version)
+        .select("*").single();
+      if (updateError || !updated) throw new AdminApiError(409, "CONTROL_FAILED", "No se pudo actualizar la reproducción");
+      const { error: eventError } = await supabase.from("reception_session_events").insert({
+        session_id: current.id, from_state: current.protocol_state, to_state: current.protocol_state,
+        action: operation.action, payload: operation.payload, idempotency_key: idempotencyKey, created_by: userId,
+      });
+      if (eventError) throw new AdminApiError(409, "CONTROL_FAILED", "No se pudo registrar la pausa");
+      if (current.display_device_id) {
+        const { error: commandError } = await supabase.from("scene_events").insert({
+          event_id: event.id, scene_type: "DISPLAY_COMMAND", payload: { action: operation.action },
+          priority: 100, duration_ms: 1000, sound: {}, animation: {}, interrupt_policy: "force",
+          target_device_id: current.display_device_id, idempotency_key: `display:${idempotencyKey}`, created_by: userId,
+        });
+        if (commandError) throw new AdminApiError(409, "CONTROL_FAILED", "No se pudo sincronizar la TV");
+      }
+      return Response.json({ session: updated });
+    }
+
     const { data, error } = await supabase.rpc("control_reception_session", {
       p_session_id: operation.sessionId, p_expected_version: operation.expectedVersion,
       p_action: operation.action, p_payload: operation.payload, p_actor_user_id: userId,
