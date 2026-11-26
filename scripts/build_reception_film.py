@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Edit the existing Nexus clips into one short film with two interaction cuts.
+"""Join the complete Nexus clips into one film with two interaction cuts.
 
 Usage: python3 scripts/build_reception_film.py SOURCE_DIRECTORY OUTPUT_DIRECTORY
 Outputs film.mp4 and the three playback parts used around nickname and photo.
@@ -13,16 +13,16 @@ import sys
 
 PHASES = (
     ("before-nickname", (
-        ("detection.mp4", 0, 4),
-        ("2 iniciando scaneo.mp4", 0, 4),
-        ("revelacion de identidad.mp4", 0, 5),
-        ("Nickname requerimiento.mp4", 0, 5),
+        "detection.mp4",
+        "2 iniciando scaneo.mp4",
+        "revelacion de identidad.mp4",
+        "Nickname requerimiento.mp4",
     )),
-    ("before-photo", (("solicitud de foto.mp4", 0, 14),)),
+    ("before-photo", ("solicitud de foto.mp4",)),
     ("after-photo", (
-        ("Avatar creado con exito.mp4", 0, 7),
-        ("calibration-nexus9.mp4", 0, 5),
-        ("player-unlocked-nexus9.mp4", 6, 9),
+        "Avatar creado con exito.mp4",
+        "calibration-nexus9.mp4",
+        "player-unlocked-nexus9.mp4",
     )),
 )
 
@@ -47,13 +47,12 @@ def main() -> None:
     phases: list[Path] = []
     for phase_name, clips in PHASES:
         parts: list[Path] = []
-        for index, (filename, start, duration) in enumerate(clips):
+        for index, filename in enumerate(clips):
             input_file = source / filename
             if not input_file.is_file():
                 raise FileNotFoundError(input_file)
             part = output / f"{phase_name}-{index}.mp4"
-            run("ffmpeg", "-y", "-loglevel", "error", "-ss", str(start),
-                "-t", str(duration), "-i", str(input_file),
+            run("ffmpeg", "-y", "-loglevel", "error", "-i", str(input_file),
                 "-vf", "fps=24,scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
                 "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
                 "-profile:v", "main", "-level", "3.1", "-movflags", "+faststart", str(part))

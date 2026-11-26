@@ -14,8 +14,8 @@ type Ack = (id:string,status:"received"|"started"|"completed"|"failed"|"skipped"
 
 export default function TvPage(){
   const [started,setStarted]=useState(false);const [{current,pending},setPlaybackQueue]=useState<DisplayPlaybackQueue>({current:null,pending:[]});
-  const [playbackPaused,setPlaybackPaused]=useState(false);const [skipSignal,setSkipSignal]=useState(0);const [updateAvailable,setUpdateAvailable]=useState(false);const [readySceneId,setReadySceneId]=useState("");const [playingSceneId,setPlayingSceneId]=useState("");
-  const processed=useRef(new Set<string>());const latestNexusScene=useRef(new Map<string,DisplayScene>());const finishing=useRef(new Set<string>());const loadedVersion=useRef("");const deviceId=useRef("");const ackRef=useRef<Ack>(async()=>false);const playedScene=useRef("");const handledSkip=useRef(0);const sceneTimer=useRef({sceneId:"",remainingMs:0});const videoEndTimer=useRef<number|null>(null);
+  const [playbackPaused,setPlaybackPaused]=useState(false);const [skipSignal,setSkipSignal]=useState(0);const [updateAvailable,setUpdateAvailable]=useState(false);const [readySceneId,setReadySceneId]=useState("");const [playingSceneId,setPlayingSceneId]=useState("");const [videoEndedSceneId,setVideoEndedSceneId]=useState("");const [audioEndedSceneId,setAudioEndedSceneId]=useState("");
+  const processed=useRef(new Set<string>());const latestNexusScene=useRef(new Map<string,DisplayScene>());const finishing=useRef(new Set<string>());const loadedVersion=useRef("");const deviceId=useRef("");const ackRef=useRef<Ack>(async()=>false);const playedScene=useRef("");const handledSkip=useRef(0);const sceneTimer=useRef({sceneId:"",remainingMs:0});
   const audio=useAudioEngine();
   const accept=useCallback((row:SceneEventRow)=>{const scene=normalizeScene(row);if(!deviceId.current||!shouldAcceptScene(scene,deviceId.current,processed.current))return;const nexusSession=scene.scene_type.toUpperCase().startsWith("NEXUS_")?scene.payload.sessionId:undefined;if(nexusSession){const latest=latestNexusScene.current.get(nexusSession);if(latest&&compareDisplaySceneOrder(scene,latest)<=0){processed.current.add(scene.id);localStorage.setItem(PROCESSED_STORAGE_KEY,JSON.stringify([...processed.current].slice(-200)));return}if(latest)processed.current.add(latest.id);latestNexusScene.current.set(nexusSession,scene)}void ackRef.current(scene.id,"received");if(scene.scene_type.toUpperCase()==="DISPLAY_COMMAND"&&scene.payload.action){void ackRef.current(scene.id,"started");if(scene.payload.action==="pause")setPlaybackPaused(true);if(scene.payload.action==="resume")setPlaybackPaused(false);if(scene.payload.action==="skip")setSkipSignal(value=>value+1);if(scene.payload.action==="clear_queue")setPlaybackQueue(state=>({...state,pending:[]}));if(scene.payload.action==="stop"||scene.payload.action==="home"){setPlaybackQueue(state=>({...state,pending:[]}));setSkipSignal(value=>value+1)}processed.current.add(scene.id);localStorage.setItem(PROCESSED_STORAGE_KEY,JSON.stringify([...processed.current].slice(-200)));void ackRef.current(scene.id,"completed");return}setPlaybackQueue(state=>queueDisplayScene(state,scene))},[]);
   const connection=useDisplayConnection(accept);
@@ -31,9 +31,12 @@ export default function TvPage(){
     if(!current||playedScene.current===current.id)return;
     playedScene.current=current.id;
     setPlayingSceneId(current.id);
-    void playScene(current).catch((reason:unknown)=>{
+    void playScene(current).then(()=>{
+      if(playedScene.current===current.id)setAudioEndedSceneId(current.id);
+    }).catch((reason:unknown)=>{
       // Changing stage intentionally cancels the previous pending audio.play().
       if(playedScene.current!==current.id||(reason instanceof Error&&reason.name==="AbortError"))return;
+      setAudioEndedSceneId(current.id);
       void acknowledge(current.id,"failed",reason instanceof Error?reason.message:"Audio playback failed");
     });
     void acknowledge(current.id,"started");
@@ -57,8 +60,17 @@ export default function TvPage(){
   useEffect(()=>{if(!started||!current||readySceneId!==current.id)return;const skipping=skipSignal>handledSkip.current;if(skipping){handledSkip.current=skipSignal;finishScene(current,"skipped");return}if(current.payload.videoUrl&&(!current.payload.videoLoop||playingSceneId!==current.id))return;if(sceneTimer.current.sceneId!==current.id)sceneTimer.current={sceneId:current.id,remainingMs:current.duration_ms??10_000};if(playbackPaused)return;const beganAt=Date.now();const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneTimer.current.remainingMs);return()=>{clearTimeout(timer);if(sceneTimer.current.sceneId===current.id)sceneTimer.current.remainingMs=Math.max(0,sceneTimer.current.remainingMs-(Date.now()-beganAt))}},[current,finishScene,playbackPaused,playingSceneId,readySceneId,skipSignal,started]);
   useEffect(()=>{if(!started||!pairing)return;void heartbeat(!muted);const interval=window.setInterval(()=>void heartbeat(!muted),15_000);return()=>clearInterval(interval)},[heartbeat,muted,pairing,started]);
   const start=useCallback(async()=>{try{await unlock();setStarted(true)}catch{setStarted(true)}},[unlock]);
-  useEffect(()=>()=>{if(videoEndTimer.current!==null){clearTimeout(videoEndTimer.current);videoEndTimer.current=null}},[current?.id]);
-  const finishVideo=useCallback(()=>{if(!current)return;if(videoEndTimer.current!==null)clearTimeout(videoEndTimer.current);const endedScene=current;videoEndTimer.current=window.setTimeout(()=>{videoEndTimer.current=null;finishScene(endedScene,"completed")},pending.length?0:5000)},[current,finishScene,pending.length]);
+  const finishVideo=useCallback(()=>{if(current)setVideoEndedSceneId(current.id)},[current]);
+  useEffect(()=>{
+    if(!current||current.payload.videoLoop||videoEndedSceneId!==current.id)return;
+    // A WAV can continue after the last MP4 frame. Keep that frame visible until both end.
+    if(audioEndedSceneId!==current.id){
+      const watchdog=window.setTimeout(()=>setAudioEndedSceneId(current.id),30_000);
+      return()=>clearTimeout(watchdog);
+    }
+    const timer=window.setTimeout(()=>finishScene(current,"completed"),pending.length?600:5000);
+    return()=>clearTimeout(timer);
+  },[audioEndedSceneId,current,finishScene,pending.length,videoEndedSceneId]);
   const failVideo=useCallback((message:string)=>{if(current)finishScene(current,"failed",message)},[current,finishScene]);
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if((event.key==="Enter"||event.key===" ")&&!started&&pairing)void start();if(event.key.toLowerCase()==="m")setMuted(!muted)};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[muted,pairing,setMuted,start,started]);
 

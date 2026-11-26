@@ -100,12 +100,36 @@ export function useAudioEngine() {
       const audio=new Audio(scene.sound.url);audio.preload="auto";audio.loop=scene.sound.loop??false;
       audio.volume=(scene.sound.volume??1)*volume;audio.muted=muted;current.current=audio;audio.load();
       const cue=scene.sound.cueMs??0;
-      if(cue>0)await new Promise<void>(resolve=>{cueTimer.current=window.setTimeout(resolve,cue)});
+      if(cue>0)await new Promise<void>(resolve=>{
+        const release=()=>{releaseCurrentSegment.current=null;resolve()};
+        releaseCurrentSegment.current=release;
+        cueTimer.current=window.setTimeout(release,cue);
+      });
       if(generation!==playbackGeneration.current)return;
-      await audio.play();return;
+      if(audio.loop){await audio.play();return}
+      await new Promise<void>((resolve,reject)=>{
+        const cleanup=()=>{audio.removeEventListener("ended",ended);audio.removeEventListener("error",failed);if(releaseCurrentSegment.current===ended)releaseCurrentSegment.current=null};
+        const ended=()=>{cleanup();resolve()};
+        const failed=()=>{cleanup();reject(new Error("No se pudo terminar el audio de la escena"))};
+        releaseCurrentSegment.current=ended;
+        audio.addEventListener("ended",ended,{once:true});
+        audio.addEventListener("error",failed,{once:true});
+        void audio.play().catch(failed);
+      });
+      return;
     }
     const name = scene.sound.name ?? defaults[scene.scene_type.toUpperCase()];
-    if (name) await play(name, { volume: scene.sound.volume, loop: scene.sound.loop });
+    if (name) {
+      await play(name, { volume: scene.sound.volume, loop: scene.sound.loop });
+      const audio=sounds.current.get(aliases[name]??name);
+      if(!audio||audio.loop||audio.ended)return;
+      await new Promise<void>(resolve=>{
+        const done=()=>{audio.removeEventListener("ended",done);audio.removeEventListener("error",done);if(releaseCurrentSegment.current===done)releaseCurrentSegment.current=null;resolve()};
+        releaseCurrentSegment.current=done;
+        audio.addEventListener("ended",done,{once:true});
+        audio.addEventListener("error",done,{once:true});
+      });
+    }
   }, [muted,play,volume]);
   const stop = useCallback(() => { playbackGeneration.current+=1;sequencePaused.current=false;if(cueTimer.current)window.clearTimeout(cueTimer.current);releaseCurrentSegment.current?.();releaseCurrentSegment.current=null;if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
   const pause = useCallback(() => { sequencePaused.current=true;current.current?.pause(); }, []);
