@@ -21,6 +21,8 @@ export function useAudioEngine() {
   const manifest = useRef(new Map<string, AudioAsset>());
   const sounds = useRef(new Map<string, HTMLAudioElement>());
   const current = useRef<HTMLAudioElement | null>(null);
+  const cueTimer = useRef<number | undefined>(undefined);
+  const playbackGeneration = useRef(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string>();
   const [muted, setMutedState] = useState(false);
@@ -47,6 +49,7 @@ export function useAudioEngine() {
   const setMuted = useCallback((value: boolean) => {
     setMutedState(value);
     for (const audio of sounds.current.values()) audio.muted = value;
+    if (current.current) current.current.muted = value;
   }, []);
 
   const setVolume = useCallback((value: number) => {
@@ -54,13 +57,14 @@ export function useAudioEngine() {
     // HTMLAudioElement is an external mutable browser resource, not React state.
     // eslint-disable-next-line react-hooks/immutability
     for (const [name, audio] of sounds.current) audio.volume = (manifest.current.get(name)?.volume ?? 1) * safe;
+    if (current.current && ![...sounds.current.values()].includes(current.current)) current.current.volume = safe;
   }, []);
 
   const play = useCallback(async (name: string, options?: { volume?: number; loop?: boolean }) => {
     name = aliases[name] ?? name;
     const audio = sounds.current.get(name); const asset = manifest.current.get(name);
     if (!audio || !asset) throw new Error(`Sonido no incluido en el manifiesto: ${name}`);
-    if (current.current && current.current !== audio && current.current.loop) { current.current.pause(); current.current.currentTime = 0; }
+    if (current.current && current.current !== audio) { current.current.pause(); current.current.currentTime = 0; }
     audio.pause(); audio.currentTime = 0; audio.loop = options?.loop ?? asset.loop;
     audio.volume = (options?.volume ?? asset.volume) * volume; audio.muted = muted;
     current.current = audio; await audio.play();
@@ -68,10 +72,22 @@ export function useAudioEngine() {
 
   const unlock = useCallback(async () => { await play("intro", { volume: .35 }); }, [play]);
   const playScene = useCallback(async (scene: DisplayScene) => {
+    if (scene.sound.url) {
+      playbackGeneration.current += 1;
+      const generation = playbackGeneration.current;
+      if (cueTimer.current) window.clearTimeout(cueTimer.current);
+      if (current.current) { current.current.pause(); current.current.currentTime = 0; }
+      const audio = new Audio(scene.sound.url);audio.preload="auto";audio.loop=scene.sound.loop??false;
+      audio.volume=(scene.sound.volume??1)*volume;audio.muted=muted;current.current=audio;audio.load();
+      const cue=scene.sound.cueMs??0;
+      if(cue>0)await new Promise<void>(resolve=>{cueTimer.current=window.setTimeout(resolve,cue)});
+      if(generation!==playbackGeneration.current)return;
+      await audio.play();return;
+    }
     const name = scene.sound.name ?? defaults[scene.scene_type.toUpperCase()];
     if (name) await play(name, { volume: scene.sound.volume, loop: scene.sound.loop });
-  }, [play]);
-  const stop = useCallback(() => { if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
+  }, [muted,play,volume]);
+  const stop = useCallback(() => { playbackGeneration.current+=1;if(cueTimer.current)window.clearTimeout(cueTimer.current);if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
   const pause = useCallback(() => { current.current?.pause(); }, []);
   const resume = useCallback(async () => { if (current.current) await current.current.play(); }, []);
 

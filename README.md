@@ -17,6 +17,7 @@ npm run dev
 Con `NEXT_PUBLIC_DEMO_MODE=true` las interfaces pueden recorrerse sin credenciales. Para persistencia real, completá Supabase y aplicá las migraciones.
 
 - `/admin`: consola operativa privada.
+- `/admin/reception`: recepción NEXUS-9, invitados, activación y recursos MP4/WAV.
 - `/checkin`: registro de jugadores.
 - `/tv`: presentación audiovisual y activación de audio.
 - `/mission`: terminal de código secreto.
@@ -27,6 +28,8 @@ Con `NEXT_PUBLIC_DEMO_MODE=true` las interfaces pueden recorrerse sin credencial
 Ejecutá `npm run verify`. Para regenerar los 17 efectos originales: `npm run audio:generate`.
 
 No se versionan claves privadas. `SUPABASE_SERVICE_ROLE_KEY` sólo puede utilizarse en servidor.
+
+La recepción admite una lista CSV con las columnas `nombre,apellido,cumpleanero`. Los videos de cada escena se cargan en MP4 y los audios en WAV; los audios que mencionan a un jugador se asocian desde su ficha y se guardan por UUID, no por nombre.
 
 ## Documentación
 

@@ -49,6 +49,8 @@ export interface ParticipantRow {
   arrived_at: string | null;
   departed_at: string | null;
   is_demo: boolean;
+  registration_status: "PRELOADED" | "CHECKIN_STARTED" | "IDENTITY_CONFIRMED" | "NICKNAME_PENDING" | "NICKNAME_CONFIRMED" | "PHOTO_PENDING" | "PHOTO_CONFIRMED" | "PROCESSING" | "ACTIVATED" | "CANCELLED";
+  activated_at: string | null;
   created_at: string;
   updated_at: string;
 }

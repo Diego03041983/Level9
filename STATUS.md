@@ -1,6 +1,6 @@
 # Santiago Level 9 — Estado real
 
-Actualizado: 25 de noviembre de 2026.
+Actualizado: 26 de noviembre de 2026.
 
 ## Implementado y verificado
 
@@ -14,6 +14,9 @@ Actualizado: 25 de noviembre de 2026.
 - Motor de sorteos y torneo eliminatorio con pases directos; resultados confirmados avanzan al ganador.
 - 17 efectos originales MP3/WAV y manifiesto reproducible.
 - Pruebas, lint, TypeScript estricto y build de producción ejecutados antes del despliegue.
+- `/admin/reception` implementa la recepción NEXUS-9: lista previa, importación CSV, activación guiada, nickname, foto/avatar y control de la TV.
+- Cada escena admite un MP4 y un WAV; los audios que mencionan nombres se asocian al UUID del jugador y tienen prioridad sobre el audio genérico.
+- La activación final y el XP se realizan de forma atómica e idempotente; sólo jugadores activados participan en sorteos.
 
 ## Separación y privacidad
 
@@ -25,6 +28,7 @@ Actualizado: 25 de noviembre de 2026.
 ## Validación física pendiente
 
 - Probar control remoto, audio y navegador en el modelo exacto de Smart TV.
+- Cargar los MP4/WAV definitivos de cada escena y comprobar sus tiempos de reproducción.
 - Registrar invitados y fotografías reales únicamente con autorización del responsable.
 
 ## URL

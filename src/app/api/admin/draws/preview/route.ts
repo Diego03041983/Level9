@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
     const { supabase, event } = await requireAdminEvent(parsed.data.eventId);
     const [{ data: players }, { data: preferences }, { data: assignments }] = await Promise.all([
-      supabase.from("participants").select("id,arrived_at,administrative_status,operational_status").eq("event_id", event.id),
+      supabase.from("participants").select("id,arrived_at,administrative_status,operational_status,registration_status").eq("event_id", event.id),
       supabase.from("participant_activity_preferences").select("participant_id,activity_id,enabled").eq("activity_id", parsed.data.activityId),
       supabase.from("station_assignments").select("participant_id").eq("event_id", event.id).in("status", ["reserved", "active"]),
     ]);
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const occupied = new Set((assignments ?? []).map((item) => item.participant_id));
     const result = drawParticipants({ activityId: parsed.data.activityId, count: parsed.data.count, mode: parsed.data.mode,
       fixedIds: parsed.data.fixedIds, candidates: (players ?? []).map((player) => ({ id: player.id,
-        registered: Boolean(player.arrived_at), active: player.administrative_status === "active",
+        registered: Boolean(player.arrived_at) && player.registration_status === "ACTIVATED", active: player.administrative_status === "active",
         occupied: occupied.has(player.id) || !["available", "resting"].includes(player.operational_status),
         enabledActivityIds: enabled.has(player.id) ? [parsed.data.activityId] : [], participationCount: 0 })) });
     const seed = randomUUID();

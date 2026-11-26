@@ -1,6 +1,6 @@
 # Santiago Level 9 — Plan de implementación
 
-Actualizado: 25 de noviembre de 2026.
+Actualizado: 26 de noviembre de 2026.
 
 ## Principios
 
@@ -42,6 +42,16 @@ Actualizado: 25 de noviembre de 2026.
 - [x] Generar 17 sonidos sintetizados reales en MP3/WAV.
 - [ ] Persistir y sincronizar Scene/Audio Engine con Supabase Realtime.
 - [ ] Consola móvil de control audiovisual.
+
+### Fase 4.1 — Recepción NEXUS-9
+
+- [x] Precarga, alta manual e importación CSV de invitados.
+- [x] Protocolo transaccional por jugador con pausa, repetición, cancelación y reanudación.
+- [x] Captura de nickname y fotografía privada con consentimiento o avatar alternativo.
+- [x] Escenas de TV sincronizadas con MP4 genérico y WAV genérico o personalizado por UUID.
+- [x] Activación atómica del jugador, XP único y elegibilidad para sorteos.
+- [x] Consola operativa simplificada para celular y almacenamiento privado con URLs firmadas.
+- [ ] Cargar los MP4/WAV finales y validar el flujo completo en el Smart TV del evento.
 
 ### Fase 5 — Misión Robux
 

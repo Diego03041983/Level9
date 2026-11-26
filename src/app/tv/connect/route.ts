@@ -5,11 +5,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const noStore = { "Cache-Control": "no-store, private" };
 const denied = () => NextResponse.json({ error: "DISPLAY_SESSION_INVALID" }, { status: 401, headers: noStore });
 
-type SceneRecord = { scene_type: string; payload: unknown; [key: string]: unknown };
+type SceneRecord = { scene_type: string; payload: unknown; sound?: unknown; [key: string]: unknown };
 
 async function signedPhotoUrl(supabase: ReturnType<typeof createAdminClient>, path: unknown) {
   if (typeof path !== "string" || !path) return undefined;
   const { data, error } = await supabase.storage.from("event-private").createSignedUrl(path, 300);
+  return error ? undefined : data.signedUrl;
+}
+
+async function signedEventMediaUrl(supabase: ReturnType<typeof createAdminClient>, path: unknown) {
+  if (typeof path !== "string" || !path) return undefined;
+  const { data, error } = await supabase.storage.from("event-media").createSignedUrl(path, 900);
   return error ? undefined : data.signedUrl;
 }
 
@@ -18,6 +24,14 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
     ? scene.payload as Record<string, unknown>
     : {};
   const payload = { ...raw };
+  const rawSound = scene.sound && typeof scene.sound === "object" && !Array.isArray(scene.sound)
+    ? scene.sound as Record<string, unknown>
+    : {};
+  const sound = { ...rawSound };
+
+  if (raw.videoPath) payload.videoUrl = await signedEventMediaUrl(supabase, raw.videoPath);
+  if (raw.photoPath) payload.photoUrl = await signedPhotoUrl(supabase, raw.photoPath);
+  if (rawSound.path) sound.url = await signedEventMediaUrl(supabase, rawSound.path);
 
   if (["PLAYER_UNLOCKED", "PLAYER_WELCOME"].includes(scene.scene_type.toUpperCase()) && !payload.player) {
     payload.player = {
@@ -36,7 +50,10 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
     }));
   }
 
-  return { ...scene, payload };
+  delete payload.videoPath;
+  delete payload.photoPath;
+  delete sound.path;
+  return { ...scene, payload, sound };
 }
 
 async function authenticate(request: NextRequest) {
@@ -49,7 +66,7 @@ async function authenticate(request: NextRequest) {
   if (!session || session.revoked_at || Date.parse(session.expires_at) <= Date.now()) return null;
   const { data: device } = await supabase.from("display_devices").select("id, event_id, revoked_at").eq("id", deviceId).maybeSingle();
   if (!device || device.revoked_at) return null;
-  return { supabase, session, device };
+  return { supabase, session, device, token };
 }
 
 export async function GET(request: NextRequest) {
@@ -94,12 +111,13 @@ export async function POST(request: NextRequest) {
     if (body.action !== "ack" || !body.sceneId || !statuses.has(body.status ?? "")) {
       return NextResponse.json({ error: "INVALID_ACK" }, { status: 400, headers: noStore });
     }
-    const { data: scene } = await authenticated.supabase.from("scene_events").select("id,event_id,target_device_id").eq("id", body.sceneId).maybeSingle();
-    if (!scene || scene.event_id !== authenticated.device.event_id || (scene.target_device_id && scene.target_device_id !== authenticated.device.id)) return denied();
-    const { error } = await authenticated.supabase.from("scene_playback_logs").upsert({
-      scene_event_id: scene.id, device_id: authenticated.device.id, status: body.status,
-      occurred_at: now, error_message: typeof body.error === "string" ? body.error.slice(0, 500) : null,
-    }, { onConflict: "scene_event_id,device_id,status", ignoreDuplicates: true });
+    const { error } = await authenticated.supabase.rpc("ack_display_scene", {
+      p_device_id: authenticated.device.id,
+      p_session_token: authenticated.token,
+      p_scene_id: body.sceneId,
+      p_status: body.status,
+      p_error_message: typeof body.error === "string" ? body.error.slice(0, 500) : null,
+    });
     if (error) throw error;
     return NextResponse.json({ ok: true }, { headers: noStore });
   } catch (error) {

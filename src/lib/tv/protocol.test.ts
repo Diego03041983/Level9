@@ -21,6 +21,12 @@ describe("TV protocol", () => {
     expect(normalizeScene(row({payload:{videoUrl:"javascript:alert(1)"}})).payload.videoUrl).toBeUndefined();
     expect(normalizeScene(row({payload:{videoUrl:"//inseguro.example/video.mp4"}})).payload.videoUrl).toBeUndefined();
   });
+  it("normalizes private NEXUS media after server hydration", () => {
+    const scene = normalizeScene(row({scene_type:"NEXUS_IDENTITY_REVEAL",payload:{firstName:"Mateo",playerNumber:7,videoUrl:"https://example.com/video.mp4",videoLoop:true,photoUrl:"https://example.com/photo.jpg"},sound:{url:"https://example.com/name.wav",cueMs:850,volume:.8}}));
+    expect(scene.payload.firstName).toBe("Mateo");
+    expect(scene.payload.videoLoop).toBe(true);
+    expect(scene.sound).toMatchObject({url:"https://example.com/name.wav",cueMs:850,volume:.8});
+  });
   it("is idempotent and rejects stale scenes", () => {
     const scene = normalizeScene(row());
     expect(shouldAcceptScene(scene,"30000000-0000-4000-8000-000000000001",new Set([scene.id]))).toBe(false);

@@ -20,6 +20,16 @@ export interface ScenePayload {
   score?: string;
   imageUrl?: string;
   videoUrl?: string;
+  videoLoop?: boolean;
+  participantId?: string;
+  firstName?: string;
+  lastName?: string;
+  gamerTag?: string;
+  playerNumber?: number;
+  avatarKey?: string;
+  photoUrl?: string;
+  isCelebrant?: boolean;
+  state?: string;
   enabled?: boolean;
   volume?: number;
   action?: "pause" | "resume" | "skip" | "clear_queue";
@@ -35,7 +45,7 @@ export interface DisplayPlayer {
 
 export interface DisplayScene extends Omit<SceneEventRow, "payload" | "sound" | "animation"> {
   payload: ScenePayload;
-  sound: { name?: string; volume?: number; loop?: boolean };
+  sound: { name?: string; url?: string; volume?: number; loop?: boolean; cueMs?: number };
   animation: Record<string, Json | undefined>;
 }
 
@@ -90,6 +100,16 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       score: typeof raw.score === "string" ? raw.score.slice(0, 30) : undefined,
       imageUrl: safeUrl(raw.imageUrl),
       videoUrl: safeUrl(raw.videoUrl),
+      videoLoop: raw.videoLoop === true,
+      participantId: typeof raw.participantId === "string" ? raw.participantId : undefined,
+      firstName: typeof raw.firstName === "string" ? raw.firstName.slice(0, 80) : undefined,
+      lastName: typeof raw.lastName === "string" ? raw.lastName.slice(0, 80) : undefined,
+      gamerTag: typeof raw.gamerTag === "string" ? raw.gamerTag.slice(0, 40) : undefined,
+      playerNumber: typeof raw.playerNumber === "number" ? raw.playerNumber : undefined,
+      avatarKey: typeof raw.avatarKey === "string" ? raw.avatarKey.slice(0, 40) : undefined,
+      photoUrl: safeUrl(raw.photoUrl),
+      isCelebrant: raw.isCelebrant === true,
+      state: typeof raw.state === "string" ? raw.state.slice(0, 80) : undefined,
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : undefined,
       volume: typeof raw.volume === "number" ? Math.min(1, Math.max(0, raw.volume)) : undefined,
       action: ["pause","resume","skip","clear_queue"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
@@ -100,8 +120,10 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
     },
     sound: {
       name: typeof rawSound.name === "string" ? rawSound.name : undefined,
+      url: safeUrl(rawSound.url),
       volume: typeof rawSound.volume === "number" ? Math.min(1, Math.max(0, rawSound.volume)) : undefined,
       loop: rawSound.loop === true,
+      cueMs: typeof rawSound.cueMs === "number" ? Math.min(600000, Math.max(0, rawSound.cueMs)) : undefined,
     },
     animation: rawAnimation,
   };
