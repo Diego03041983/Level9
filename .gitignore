@@ -45,3 +45,8 @@ next-env.d.ts
 /.claude-flow/
 /.swarm/
 /supabase/.temp/
+
+# Android TV build outputs
+/android-tv/.gradle/
+/android-tv/**/build/
+/android-tv/local.properties
