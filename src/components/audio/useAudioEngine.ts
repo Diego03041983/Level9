@@ -25,7 +25,6 @@ export function useAudioEngine() {
   const playbackGeneration = useRef(0);
   const sequencePaused = useRef(false);
   const releaseCurrentSegment = useRef<(() => void) | null>(null);
-  const preloadedUrls = useRef(new Set<string>());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string>();
   const [muted, setMutedState] = useState(false);
@@ -40,8 +39,8 @@ export function useAudioEngine() {
       for (const asset of data.assets) {
         manifest.current.set(asset.name, asset);
         const audio = new Audio(pathFor(asset));
-        audio.preload = "auto"; audio.loop = asset.loop; audio.volume = asset.volume * .75;
-        sounds.current.set(asset.name, audio); audio.load();
+        audio.preload = "none"; audio.loop = asset.loop; audio.volume = asset.volume * .75;
+        sounds.current.set(asset.name, audio);
       }
       setReady(true);
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Audio no disponible"));
@@ -74,15 +73,13 @@ export function useAudioEngine() {
   }, [muted, volume]);
 
   const unlock = useCallback(async () => { await play("intro", { volume: .35 }); }, [play]);
-  const prepareScene = useCallback(async (scene: DisplayScene) => {
-    const url=scene.sound.url;if(!url||preloadedUrls.current.has(url))return;
-    try{const response=await fetch(url,{cache:"force-cache"});if(!response.ok)return;await response.arrayBuffer();preloadedUrls.current.add(url)}catch{/* HTMLAudio retries directly if cache warming is unavailable */}
-  }, []);
   const playScene = useCallback(async (scene: DisplayScene) => {
+    releaseCurrentSegment.current?.();
+    releaseCurrentSegment.current = null;
+    if (current.current) { current.current.pause(); current.current = null; }
     if (scene.sound.sequence?.length) {
       const generation=++playbackGeneration.current;
       if(cueTimer.current)window.clearTimeout(cueTimer.current);
-      if(current.current){current.current.pause();current.current.currentTime=0}
       for(const segment of scene.sound.sequence){
         if(generation!==playbackGeneration.current)return;
         if(segment.kind==="silence"){
@@ -100,7 +97,6 @@ export function useAudioEngine() {
       playbackGeneration.current += 1;
       const generation = playbackGeneration.current;
       if (cueTimer.current) window.clearTimeout(cueTimer.current);
-      if (current.current) { current.current.pause(); current.current.currentTime = 0; }
       const audio=new Audio(scene.sound.url);audio.preload="auto";audio.loop=scene.sound.loop??false;
       audio.volume=(scene.sound.volume??1)*volume;audio.muted=muted;current.current=audio;audio.load();
       const cue=scene.sound.cueMs??0;
@@ -115,5 +111,5 @@ export function useAudioEngine() {
   const pause = useCallback(() => { sequencePaused.current=true;current.current?.pause(); }, []);
   const resume = useCallback(async () => { sequencePaused.current=false;if (current.current) await current.current.play(); }, []);
 
-  return { ready, error, muted, volume, setMuted, setVolume, unlock, prepareScene, playScene, stop, pause, resume };
+  return { ready, error, muted, volume, setMuted, setVolume, unlock, playScene, stop, pause, resume };
 }

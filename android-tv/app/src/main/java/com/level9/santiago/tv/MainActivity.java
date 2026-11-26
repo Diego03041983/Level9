@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private AlertDialog pairingDialog;
+    private NativeVideoPlayer nativeVideo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +62,8 @@ public final class MainActivity extends Activity {
         ));
         setContentView(root);
         configureWebView();
+        nativeVideo = new NativeVideoPlayer(this, webView, root);
+        webView.addJavascriptInterface(nativeVideo, "Level9Native");
 
         String launchUrl = getSafeLaunchUrl(getIntent());
         webView.loadUrl(launchUrl == null ? HOME_URL : launchUrl);
@@ -83,7 +86,7 @@ public final class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " Level9TV/1.0 AndroidTV");
+        settings.setUserAgentString(settings.getUserAgentString() + " Level9TV/1.1 AndroidTV");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -211,10 +214,23 @@ public final class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_UP && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
-            showPairingDialog();
+            showAppMenu();
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private void showAppMenu() {
+        new AlertDialog.Builder(this).setTitle("Level 9 TV · 1.1.0")
+                .setItems(new String[]{"Volver a vincular", "Recargar pantalla", nativeVideo.isSoftware() ? "Usar reproducción estándar" : "Activar modo compatible (pantalla verde)"}, (dialog, which) -> {
+                    if (which == 0) showPairingDialog();
+                    if (which == 1) { nativeVideo.stop(); webView.reload(); }
+                    if (which == 2) {
+                        nativeVideo.setSoftware(!nativeVideo.isSoftware());
+                        nativeVideo.stop();
+                        webView.reload();
+                    }
+                }).setNegativeButton("Cerrar", null).show();
     }
 
     @Override
@@ -227,6 +243,7 @@ public final class MainActivity extends Activity {
                 .setTitle("Cerrar Level 9 TV")
                 .setMessage("¿Querés volver al inicio del televisor?")
                 .setPositiveButton("Salir", (dialog, which) -> finish())
+                .setNeutralButton("Opciones", (dialog, which) -> showAppMenu())
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
@@ -236,17 +253,20 @@ public final class MainActivity extends Activity {
         super.onResume();
         webView.onResume();
         webView.resumeTimers();
+        if (nativeVideo != null) nativeVideo.setForeground(true);
         enterImmersiveMode();
     }
 
     @Override
     protected void onPause() {
+        if (nativeVideo != null) nativeVideo.setForeground(false);
         webView.onPause();
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
+        if (nativeVideo != null) nativeVideo.stop();
         if (webView != null) {
             webView.stopLoading();
             webView.loadUrl("about:blank");
@@ -264,6 +284,11 @@ public final class MainActivity extends Activity {
     }
 
     private final class Level9WebViewClient extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            if (nativeVideo != null) nativeVideo.stop();
+            super.onPageStarted(view, url, favicon);
+        }
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();

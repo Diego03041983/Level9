@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const noStore = { "Cache-Control": "no-store, private" };
 const denied = () => NextResponse.json({ error: "DISPLAY_SESSION_INVALID" }, { status: 401, headers: noStore });
+// Signing the same currently playing clip at every recovery is expensive.
+// Entries are used only after session authentication; URLs outlive the cache.
+const mediaUrls = new Map<string, { expires: number; url: string }>();
 
 type SceneRecord = { scene_type: string; payload: unknown; sound?: unknown; [key: string]: unknown };
 
@@ -15,8 +18,13 @@ async function signedPhotoUrl(supabase: ReturnType<typeof createAdminClient>, pa
 
 async function signedEventMediaUrl(supabase: ReturnType<typeof createAdminClient>, path: unknown) {
   if (typeof path !== "string" || !path) return undefined;
+  const cached = mediaUrls.get(path);
+  if (cached && cached.expires > Date.now()) return cached.url;
   const { data, error } = await supabase.storage.from("event-media").createSignedUrl(path, 900);
-  return error ? undefined : data.signedUrl;
+  if (error) return undefined;
+  if (mediaUrls.size >= 300) mediaUrls.clear();
+  mediaUrls.set(path, { url: data.signedUrl, expires: Date.now() + 300_000 });
+  return data.signedUrl;
 }
 
 async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient>, scene: SceneRecord) {
@@ -29,9 +37,12 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
     : {};
   const sound = { ...rawSound };
 
-  if (raw.videoPath) payload.videoUrl = await signedEventMediaUrl(supabase, raw.videoPath);
-  if (raw.photoPath) payload.photoUrl = await signedPhotoUrl(supabase, raw.photoPath);
-  if (rawSound.path) sound.url = await signedEventMediaUrl(supabase, rawSound.path);
+  const [videoUrl, photoUrl, audioUrl] = await Promise.all([
+    signedEventMediaUrl(supabase, raw.videoPath), signedPhotoUrl(supabase, raw.photoPath), signedEventMediaUrl(supabase, rawSound.path),
+  ]);
+  if (raw.videoPath) payload.videoUrl = videoUrl;
+  if (raw.photoPath) payload.photoUrl = photoUrl;
+  if (rawSound.path) sound.url = audioUrl;
   if (Array.isArray(rawSound.sequence)) {
     sound.sequence = await Promise.all(rawSound.sequence.map(async (value) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -95,13 +106,10 @@ export async function GET(request: NextRequest) {
     if (!authenticated) return denied();
     const requestedEvent = request.nextUrl.searchParams.get("eventId");
     if (requestedEvent !== authenticated.device.event_id) return denied();
-    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    await authenticated.supabase.from("scene_events").update({ status: "expired" })
-      .eq("event_id", requestedEvent).in("status", ["queued", "delivered", "playing"]).lt("created_at", staleCutoff);
     const { data, error } = await authenticated.supabase.from("scene_events").select("*")
       .eq("event_id", requestedEvent).in("status", ["queued", "delivered", "playing"])
-      .gte("created_at", cutoff).lte("scheduled_at", new Date(Date.now() + 30_000).toISOString())
+      .gte("created_at", staleCutoff).lte("scheduled_at", new Date(Date.now() + 30_000).toISOString())
       .order("priority", { ascending: false }).order("scheduled_at", { ascending: true }).limit(30);
     if (error) throw error;
     const deviceScenes = (data ?? []).filter((scene) => !scene.target_device_id || scene.target_device_id === authenticated.device.id);
@@ -122,10 +130,7 @@ export async function GET(request: NextRequest) {
       return typeof payload.sessionId !== "string" || liveSessionIds.has(payload.sessionId);
     });
     const scenes = await Promise.all(visibleScenes.map((scene) => hydratePrivateMedia(authenticated.supabase, scene as SceneRecord)));
-    await Promise.all([
-      authenticated.supabase.from("display_devices").update({ last_seen_at: new Date().toISOString() }).eq("id", authenticated.device.id),
-      authenticated.supabase.from("display_sessions").update({ last_seen_at: new Date().toISOString() }).eq("id", authenticated.session.id),
-    ]);
+    // Heartbeats handle presence every 15s; recovery should be read-only and fast.
     return NextResponse.json({ eventId: requestedEvent, deviceId: authenticated.device.id, scenes }, { headers: noStore });
   } catch (error) {
     console.error("TV state recovery failed", error);

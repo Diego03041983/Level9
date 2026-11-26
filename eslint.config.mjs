@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "android-tv/**/build/**",
+    "android-tv/.gradle/**",
     "next-env.d.ts",
   ]),
 ]);

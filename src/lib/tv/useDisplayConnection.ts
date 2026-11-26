@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { hasSupabasePublicConfig } from "@/lib/supabase/config";
 import type { SceneEventRow } from "@/types/database";
 import { PAIRING_STORAGE_KEY, parsePairing, type DisplayPairing } from "./protocol";
+import { startScenePolling } from "./scene-poller";
 
 export type ConnectionStatus = "unpaired" | "config_missing" | "connecting" | "realtime" | "polling" | "offline" | "revoked";
 
@@ -20,22 +21,28 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [lastSeen, setLastSeen] = useState<Date>();
   const [pendingCount, setPendingCount] = useState(0);
+  const requestInFlight = useRef(false);
   const publicConfigured = hasSupabasePublicConfig();
 
   useEffect(() => { callback.current = onScene; }, [onScene]);
 
   const headers = useCallback(() => pairing ? { "x-display-device": pairing.deviceId, "x-display-session": pairing.sessionToken } : undefined, [pairing]);
   const requestState = useCallback(async () => {
-    if (!pairing) return;
+    if (!pairing || requestInFlight.current) return;
+    requestInFlight.current = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch(`/tv/connect?eventId=${encodeURIComponent(pairing.eventId)}`, { headers: headers(), cache: "no-store" });
+      const response = await fetch(`/tv/connect?eventId=${encodeURIComponent(pairing.eventId)}`, { headers: headers(), cache: "no-store", signal: controller.signal });
       if (response.status === 401) { setStatus("revoked"); return; }
       if (!response.ok) throw new Error("state unavailable");
       const data = await response.json() as { scenes: SceneEventRow[] };
       setPendingCount(data.scenes.length); setLastSeen(new Date());
       for (const scene of data.scenes) callback.current(scene);
       setStatus((current) => current === "realtime" ? current : "polling");
-    } catch { setStatus("offline"); }
+      return true;
+    } catch { setStatus("offline"); return false; }
+    finally { clearTimeout(timeout); requestInFlight.current = false; }
   }, [headers, pairing]);
 
   const post = useCallback(async (body: Record<string, unknown>) => {
@@ -61,7 +68,7 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
     if (!pairing) return;
     if (!publicConfigured) return;
     const supabase = createClient();
-    const initialRecovery = window.setTimeout(() => void requestState(), 0);
+    const stopPolling = startScenePolling(requestState);
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | undefined;
     // Realtime rows contain private storage paths, not the short-lived signed media URLs.
@@ -77,8 +84,7 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
           else if (channelStatus === "CHANNEL_ERROR" || channelStatus === "TIMED_OUT") setStatus("polling");
         });
     });
-    const poll = window.setInterval(() => void requestState(), 10_000);
-    return () => { cancelled = true; clearTimeout(initialRecovery); clearInterval(poll); if (channel) void supabase.removeChannel(channel); };
+    return () => { cancelled = true; stopPolling(); if (channel) void supabase.removeChannel(channel); };
   }, [pairing, publicConfigured, requestState]);
 
   const forgetPairing = useCallback(() => { localStorage.removeItem(PAIRING_STORAGE_KEY); setPairing(null); setStatus("unpaired"); }, []);
