@@ -13,12 +13,13 @@ const titles:Record<string,string>={
 };
 
 export function NexusScene({scene,paused,onEnded}:{scene:DisplayScene;paused:boolean;onEnded:()=>void}){
-  const videoRef=useRef<HTMLVideoElement>(null);const [videoFailed,setVideoFailed]=useState(false);const payload=scene.payload;const state=(payload.state??scene.scene_type.replace(/^NEXUS_/,"")).toUpperCase();
-  useEffect(()=>{const video=videoRef.current;if(!video)return;if(paused)video.pause();else void video.play().catch(()=>setVideoFailed(true))},[paused]);
+  const videoRef=useRef<HTMLVideoElement>(null);const [failedVideoUrl,setFailedVideoUrl]=useState<string>();const payload=scene.payload;const state=(payload.state??scene.scene_type.replace(/^NEXUS_/,"")).toUpperCase();
+  useEffect(()=>{const video=videoRef.current;if(!video)return;if(paused)video.pause();else void video.play().catch(()=>setFailedVideoUrl(payload.videoUrl))},[paused,payload.videoUrl]);
   const showIdentity=["IDENTITY_REVEAL","NICKNAME_CONFIRMED","PLAYER_UNLOCKED"].includes(state);
   const showPhoto=["AVATAR_PROCESSING","GAMER_CALIBRATION","PLAYER_UNLOCKED"].includes(state)&&payload.photoUrl;
+  if(payload.videoUrl!==undefined&&payload.videoUrl!==failedVideoUrl)return <video ref={videoRef} src={payload.videoUrl} autoPlay muted playsInline preload="auto" loop={payload.videoLoop} onEnded={()=>{if(!payload.videoLoop)onEnded()}} onError={()=>setFailedVideoUrl(payload.videoUrl)} className="h-full w-full bg-black object-cover"/>;
   return <div className="relative h-full w-full overflow-hidden bg-[#080e24] text-center">
-    {payload.videoUrl&&!videoFailed?<video ref={videoRef} src={payload.videoUrl} autoPlay muted playsInline preload="auto" loop={payload.videoLoop} onEnded={()=>{if(!payload.videoLoop)onEnded()}} onError={()=>setVideoFailed(true)} className="absolute inset-0 h-full w-full object-cover"/>:<NexusCore speaking={Boolean(scene.sound.url)}/>}<div className="absolute inset-0 bg-[radial-gradient(circle,transparent_25%,rgba(8,14,36,.55)_100%)]"/>
+    <NexusCore speaking={Boolean(scene.sound.url)}/><div className="absolute inset-0 bg-[radial-gradient(circle,transparent_25%,rgba(8,14,36,.55)_100%)]"/>
     <div className="relative z-10 grid h-full place-items-center px-[5vw] py-[5vh]"><div className="w-full max-w-6xl"><p className="eyebrow">NEXUS-9 · PLAYER ACTIVATION PROTOCOL</p>
       {showPhoto&&<div className="relative mx-auto mt-5 h-[clamp(13rem,34vh,24rem)] w-[clamp(13rem,34vh,24rem)] overflow-hidden rounded-[2rem] border-4 border-cyan-300 shadow-[0_0_60px_rgba(0,217,255,.4)]"><Image unoptimized fill sizes="34vh" src={payload.photoUrl!} alt={`Avatar de ${payload.firstName??"jugador"}`} className="object-cover"/></div>}
       <h1 className="display-title neon-text mt-7 text-[clamp(3rem,8vw,8rem)] text-white">{titles[state]??state.replaceAll("_"," ")}</h1>
