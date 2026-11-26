@@ -81,7 +81,21 @@ export async function GET(request: NextRequest) {
       .gte("created_at", cutoff).lte("scheduled_at", new Date(Date.now() + 30_000).toISOString())
       .order("priority", { ascending: false }).order("scheduled_at", { ascending: true }).limit(30);
     if (error) throw error;
-    const visibleScenes = (data ?? []).filter((scene) => !scene.target_device_id || scene.target_device_id === authenticated.device.id);
+    const deviceScenes = (data ?? []).filter((scene) => !scene.target_device_id || scene.target_device_id === authenticated.device.id);
+    const receptionSessionIds = [...new Set(deviceScenes.flatMap((scene) => {
+      if (!scene.scene_type.toUpperCase().startsWith("NEXUS_")) return [];
+      const payload = scene.payload && typeof scene.payload === "object" && !Array.isArray(scene.payload) ? scene.payload as Record<string, unknown> : {};
+      return typeof payload.sessionId === "string" ? [payload.sessionId] : [];
+    }))];
+    const { data: liveReceptionSessions } = receptionSessionIds.length
+      ? await authenticated.supabase.from("reception_sessions").select("id").in("id", receptionSessionIds).in("status", ["active", "paused"])
+      : { data: [] as { id: string }[] };
+    const liveSessionIds = new Set((liveReceptionSessions ?? []).map((session) => session.id));
+    const visibleScenes = deviceScenes.filter((scene) => {
+      if (!scene.scene_type.toUpperCase().startsWith("NEXUS_")) return true;
+      const payload = scene.payload && typeof scene.payload === "object" && !Array.isArray(scene.payload) ? scene.payload as Record<string, unknown> : {};
+      return typeof payload.sessionId === "string" && liveSessionIds.has(payload.sessionId);
+    });
     const scenes = await Promise.all(visibleScenes.map((scene) => hydratePrivateMedia(authenticated.supabase, scene as SceneRecord)));
     await Promise.all([
       authenticated.supabase.from("display_devices").update({ last_seen_at: new Date().toISOString() }).eq("id", authenticated.device.id),

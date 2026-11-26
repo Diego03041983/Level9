@@ -135,6 +135,6 @@ export function shouldAcceptScene(scene: DisplayScene, deviceId: string, process
   const scheduled = Date.parse(scene.scheduled_at);
   if (!Number.isFinite(scheduled) || scheduled > now + 30_000) return false;
   const maxAge = Math.max(scene.duration_ms ?? 30_000, 60_000);
-  return scheduled >= now - maxAge || scene.status === "playing";
+  return scheduled >= now - maxAge;
 }
 

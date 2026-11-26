@@ -200,6 +200,12 @@ begin
   scene_duration := least(600000, greatest(scene_duration, video_duration + 1000, audio_cue + audio_duration + 1000));
   if p_scene_key in ('WAITING_NICKNAME','WAITING_PHOTO','STANDBY') then scene_duration := 600000; end if;
 
+  update public.scene_events
+  set status = 'expired'
+  where event_id = session_row.event_id
+    and payload->>'sessionId' = session_row.id::text
+    and status in ('queued','delivered','playing');
+
   insert into public.scene_events(
     event_id, scene_type, payload, priority, duration_ms, sound, animation,
     interrupt_policy, target_device_id, idempotency_key, created_by

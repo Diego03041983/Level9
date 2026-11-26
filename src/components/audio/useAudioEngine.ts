@@ -5,6 +5,7 @@ import type { DisplayScene } from "@/lib/tv/protocol";
 
 interface AudioAsset { name: string; type: "sfx" | "music" | "voice"; volume: number; loop: boolean }
 interface Manifest { assets: AudioAsset[] }
+type PreparedAudio = { sceneId: string; audio: HTMLAudioElement; ready: Promise<void> };
 
 const defaults: Record<string, string> = {
   EVENT_INTRO: "intro", WELCOME_SCREEN: "intro", PLAYER_UNLOCKED: "player-unlocked", PLAYER_WELCOME: "player-unlocked", PLAYER_DRAW: "roulette-loop", TEAM_DRAW: "team-selected",
@@ -16,6 +17,16 @@ const defaults: Record<string, string> = {
 const aliases: Record<string,string> = { welcome:"intro", versus:"versus-impact", announcement:"notification" };
 
 const pathFor = (asset: AudioAsset) => `/assets/audio/${asset.type === "voice" ? "voice" : "sfx"}/${asset.name}.mp3`;
+const waitUntilPlayable = (audio: HTMLAudioElement) => {
+  if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => { if (settled) return; settled = true; window.clearTimeout(timer); audio.removeEventListener("canplay", done); audio.removeEventListener("error", done); resolve(); };
+    const timer = window.setTimeout(done, 5000);
+    audio.addEventListener("canplay", done, { once: true });
+    audio.addEventListener("error", done, { once: true });
+  });
+};
 
 export function useAudioEngine() {
   const manifest = useRef(new Map<string, AudioAsset>());
@@ -23,6 +34,7 @@ export function useAudioEngine() {
   const current = useRef<HTMLAudioElement | null>(null);
   const cueTimer = useRef<number | undefined>(undefined);
   const playbackGeneration = useRef(0);
+  const prepared = useRef<PreparedAudio | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string>();
   const [muted, setMutedState] = useState(false);
@@ -50,6 +62,7 @@ export function useAudioEngine() {
     setMutedState(value);
     for (const audio of sounds.current.values()) audio.muted = value;
     if (current.current) current.current.muted = value;
+    if (prepared.current) prepared.current.audio.muted = value;
   }, []);
 
   const setVolume = useCallback((value: number) => {
@@ -58,6 +71,7 @@ export function useAudioEngine() {
     // eslint-disable-next-line react-hooks/immutability
     for (const [name, audio] of sounds.current) audio.volume = (manifest.current.get(name)?.volume ?? 1) * safe;
     if (current.current && ![...sounds.current.values()].includes(current.current)) current.current.volume = safe;
+    if (prepared.current) prepared.current.audio.volume = safe;
   }, []);
 
   const play = useCallback(async (name: string, options?: { volume?: number; loop?: boolean }) => {
@@ -71,14 +85,34 @@ export function useAudioEngine() {
   }, [muted, volume]);
 
   const unlock = useCallback(async () => { await play("intro", { volume: .35 }); }, [play]);
+  const prepareScene = useCallback(async (scene: DisplayScene) => {
+    if (!scene.sound.url) return;
+    if (prepared.current?.sceneId === scene.id) return prepared.current.ready;
+    if (prepared.current && prepared.current.audio !== current.current) {
+      prepared.current.audio.pause();
+      prepared.current.audio.removeAttribute("src");
+      prepared.current.audio.load();
+    }
+    const audio = new Audio(scene.sound.url);
+    audio.preload = "auto"; audio.loop = scene.sound.loop ?? false;
+    audio.volume = (scene.sound.volume ?? 1) * volume; audio.muted = muted;
+    const ready = waitUntilPlayable(audio);
+    prepared.current = { sceneId: scene.id, audio, ready };
+    audio.load();
+    await ready;
+  }, [muted, volume]);
   const playScene = useCallback(async (scene: DisplayScene) => {
     if (scene.sound.url) {
       playbackGeneration.current += 1;
       const generation = playbackGeneration.current;
       if (cueTimer.current) window.clearTimeout(cueTimer.current);
       if (current.current) { current.current.pause(); current.current.currentTime = 0; }
-      const audio = new Audio(scene.sound.url);audio.preload="auto";audio.loop=scene.sound.loop??false;
-      audio.volume=(scene.sound.volume??1)*volume;audio.muted=muted;current.current=audio;audio.load();
+      await prepareScene(scene);
+      if(generation!==playbackGeneration.current)return;
+      let audio:HTMLAudioElement;
+      if(prepared.current?.sceneId===scene.id)audio=prepared.current.audio;
+      else{audio=new Audio(scene.sound.url);audio.loop=scene.sound.loop??false;audio.volume=(scene.sound.volume??1)*volume;audio.muted=muted}
+      current.current=audio;
       const cue=scene.sound.cueMs??0;
       if(cue>0)await new Promise<void>(resolve=>{cueTimer.current=window.setTimeout(resolve,cue)});
       if(generation!==playbackGeneration.current)return;
@@ -86,10 +120,10 @@ export function useAudioEngine() {
     }
     const name = scene.sound.name ?? defaults[scene.scene_type.toUpperCase()];
     if (name) await play(name, { volume: scene.sound.volume, loop: scene.sound.loop });
-  }, [muted,play,volume]);
-  const stop = useCallback(() => { playbackGeneration.current+=1;if(cueTimer.current)window.clearTimeout(cueTimer.current);if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
+  }, [muted,play,prepareScene,volume]);
+  const stop = useCallback(() => { playbackGeneration.current+=1;if(cueTimer.current)window.clearTimeout(cueTimer.current);if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; }if(prepared.current){prepared.current.audio.pause();prepared.current=null} }, []);
   const pause = useCallback(() => { current.current?.pause(); }, []);
   const resume = useCallback(async () => { if (current.current) await current.current.play(); }, []);
 
-  return { ready, error, muted, volume, setMuted, setVolume, unlock, playScene, stop, pause, resume };
+  return { ready, error, muted, volume, setMuted, setVolume, unlock, prepareScene, playScene, stop, pause, resume };
 }

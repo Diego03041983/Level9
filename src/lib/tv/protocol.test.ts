@@ -31,5 +31,6 @@ describe("TV protocol", () => {
     const scene = normalizeScene(row());
     expect(shouldAcceptScene(scene,"30000000-0000-4000-8000-000000000001",new Set([scene.id]))).toBe(false);
     expect(shouldAcceptScene(normalizeScene(row({scheduled_at:new Date(Date.now()-120_000).toISOString()})),"30000000-0000-4000-8000-000000000001",new Set())).toBe(false);
+    expect(shouldAcceptScene(normalizeScene(row({status:"playing",scheduled_at:new Date(Date.now()-120_000).toISOString()})),"30000000-0000-4000-8000-000000000001",new Set())).toBe(false);
   });
 });
