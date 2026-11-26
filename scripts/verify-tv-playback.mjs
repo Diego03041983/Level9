@@ -55,7 +55,7 @@ try {
       if (!native) await page.waitForFunction(() => document.querySelector("video")?.currentTime > 0.1);
       console.log(`${native ? "native bridge" : "HTML video"} stage ${index}: ${started.at - sent}ms`);
     }
-    assert.equal(acks.filter(ack => ack.status === "failed").length, 0);
+    assert.equal(acks.filter(ack => ack.status === "failed").length, 0, JSON.stringify(acks.filter(ack => ack.status === "failed")));
     if (native) {
       const calls = await page.evaluate(() => window.nativeCalls);
       assert.ok(calls.some(call => call.action === "stop"), "old native video was not released");

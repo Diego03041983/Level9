@@ -31,7 +31,11 @@ export default function TvPage(){
     if(!current||playedScene.current===current.id)return;
     playedScene.current=current.id;
     setPlayingSceneId(current.id);
-    void playScene(current).catch((reason:unknown)=>void acknowledge(current.id,"failed",reason instanceof Error?reason.message:"Audio playback failed"));
+    void playScene(current).catch((reason:unknown)=>{
+      // Changing stage intentionally cancels the previous pending audio.play().
+      if(playedScene.current!==current.id||(reason instanceof Error&&reason.name==="AbortError"))return;
+      void acknowledge(current.id,"failed",reason instanceof Error?reason.message:"Audio playback failed");
+    });
     void acknowledge(current.id,"started");
   },[acknowledge,current,playScene]);
   useEffect(()=>{
