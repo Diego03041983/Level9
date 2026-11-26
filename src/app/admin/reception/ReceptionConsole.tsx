@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { AppShell } from "@/components/ui/AppShell";
 import { receptionMediaScenes, receptionStateLabels, type ReceptionState } from "@/lib/reception/constants";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 type Participant = {
   id:string;first_name:string;last_name:string|null;gamer_tag:string|null;player_number:number;avatar_key:string|null;
@@ -68,7 +69,48 @@ export function ReceptionConsole({eventId,eventName}:{eventId:string;eventName:s
 function GuestEditor({participant,busy,onSave,onCancel}:{participant:Participant;busy:boolean;onSave:(guest:{firstName:string;lastName:string;isCelebrant:boolean;avatarKey:"bolt"|"diamond"|"triangle"})=>Promise<void>;onCancel:()=>Promise<void>}){return <details className="mt-3 border-t border-white/10 pt-3"><summary className="cursor-pointer text-xs font-black text-slate-300">Editar invitado</summary><form onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);const avatarKey=participant.avatar_key==="diamond"||participant.avatar_key==="triangle"?participant.avatar_key:"bolt";void onSave({firstName:String(form.get("firstName")??""),lastName:String(form.get("lastName")??""),isCelebrant:form.get("isCelebrant")==="on",avatarKey})}} className="mt-3 grid gap-2"><input required name="firstName" defaultValue={participant.first_name} className="rounded bg-black/25 p-2 text-sm"/><input name="lastName" defaultValue={participant.last_name??""} placeholder="Apellido" className="rounded bg-black/25 p-2 text-sm"/><label className="text-xs"><input name="isCelebrant" type="checkbox" defaultChecked={participant.is_celebrant} className="mr-2 accent-yellow-300"/>Cumpleañero</label><div className="grid grid-cols-2 gap-2"><button disabled={busy} className="ghost-action py-2 text-xs">Guardar</button><button disabled={busy} type="button" onClick={()=>void onCancel()} className="ghost-action py-2 text-xs text-red-300">Desactivar</button></div></form></details>}
 
 function MediaConfiguration({eventId,selected,media,busy,setBusy,setFeedback,reload}:{eventId:string;selected?:Participant;media:MediaAssignment[];busy:boolean;setBusy:(value:boolean)=>void;setFeedback:(value:string)=>void;reload:()=>Promise<void>}){
-  const upload=async(file:File|undefined,sceneKey:string,kind:"video"|"audio",participantId:string|null,loop=false)=>{if(!file)return;setBusy(true);setFeedback("Cargando recurso audiovisual…");try{const form=new FormData();form.set("eventId",eventId);form.set("participantId",participantId??"");form.set("sceneKey",sceneKey);form.set("mediaKind",kind);form.set("file",file);form.set("loop",String(loop));form.set("volume","1");form.set("cueMs","0");form.set("durationMs",String(await mediaDuration(file)));const response=await fetch("/api/admin/reception/media",{method:"POST",body:form});const body=await response.json();if(!response.ok)throw new Error(body.error??"No se pudo cargar");await reload();setFeedback("Recurso asociado correctamente")}catch(error){setFeedback(error instanceof Error?error.message:"Error de carga")}finally{setBusy(false)}};
+  const upload=async(file:File|undefined,sceneKey:string,kind:"video"|"audio",participantId:string|null,loop=false)=>{
+    if(!file)return;
+    const isVideo=kind==="video";
+    const allowed=isVideo?file.type==="video/mp4":["audio/wav","audio/x-wav","audio/mpeg"].includes(file.type);
+    if(!allowed){setFeedback(isVideo?"El video debe ser MP4":"El audio debe ser WAV o MP3");return}
+    if(file.size>(isVideo?100:20)*1024*1024){setFeedback("El archivo supera el límite permitido");return}
+    setBusy(true);
+    setFeedback("Preparando recurso audiovisual…");
+    try{
+      const supabase=createClient();
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!session)throw new Error("La sesión expiró. Volvé a iniciar sesión.");
+      const {url,key}=getSupabasePublicConfig();
+      const storageUrl=new URL(url);
+      storageUrl.hostname=storageUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
+      const ext=isVideo?"mp4":file.type==="audio/mpeg"?"mp3":"wav";
+      const storagePath=`${eventId}/reception/${participantId??"generic"}/${sceneKey.toLowerCase()}/${crypto.randomUUID()}.${ext}`;
+      const {Upload}=await import("tus-js-client");
+      await new Promise<void>((resolve,reject)=>{
+        const transfer=new Upload(file,{
+          endpoint:`${storageUrl.origin}/storage/v1/upload/resumable`,
+          headers:{authorization:`Bearer ${session.access_token}`,apikey:key},
+          metadata:{bucketName:"event-media",objectName:storagePath,contentType:file.type,cacheControl:"3600"},
+          chunkSize:6*1024*1024,
+          retryDelays:[0,3000,5000,10000,20000],
+          uploadDataDuringCreation:true,
+          removeFingerprintOnSuccess:true,
+          onProgress:(sent,total)=>setFeedback(`Cargando ${sceneKey.toLowerCase().replaceAll("_"," ")}… ${Math.round(sent/total*100)}%`),
+          onSuccess:()=>resolve(),
+          onError:error=>reject(error),
+        });
+        transfer.start();
+      });
+      setFeedback("Asociando archivo a la escena…");
+      const response=await fetch("/api/admin/reception/media",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({eventId,participantId:participantId??"",sceneKey,mediaKind:kind,storagePath,loop:String(loop),volume:"1",cueMs:"0",durationMs:String(await mediaDuration(file))})});
+      const body=await response.json();
+      if(!response.ok)throw new Error(body.error??"No se pudo asociar el archivo");
+      await reload();
+      setFeedback("Recurso asociado correctamente");
+    }catch(error){setFeedback(error instanceof Error?error.message:"Error de carga")}
+    finally{setBusy(false)}
+  };
   const find=(key:string,kind:string,participantId:string|null)=>media.find(item=>item.scene_key===key&&item.media_kind===kind&&item.participant_id===participantId);
   return <details className="panel cut mt-4 p-5"><summary className="cursor-pointer text-lg font-black">CONFIGURAR VIDEOS Y AUDIOS <small className="ml-2 text-xs font-normal text-slate-500">Opcional antes del evento</small></summary><p className="mt-3 text-sm text-slate-400">Cargá el MP4 general de cada escena. Los WAV que mencionan nombres se cargan únicamente desde el jugador seleccionado.</p><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{receptionMediaScenes.map(scene=>{const video=find(scene.key,"video",null);const audio=find(scene.key,"audio",null);const personalizedIdentity=scene.key==="IDENTITY_REVEAL";return <article key={scene.key} className="rounded-xl border border-white/10 bg-black/15 p-4"><b className="block text-sm">{scene.label}</b><small className="font-mono text-[9px] text-slate-600">{scene.key}</small><div className="mt-3 grid grid-cols-2 gap-2"><label className={`ghost-action cursor-pointer p-3 text-center text-xs ${video?"!border-lime-300/40 !text-lime-200":""}`}>{video?"✓ MP4":"Subir MP4"}<input disabled={busy} type="file" accept="video/mp4" onChange={event=>void upload(event.target.files?.[0],scene.key,"video",null,["WAITING_NICKNAME","WAITING_PHOTO"].includes(scene.key))} className="sr-only"/></label>{personalizedIdentity?<span className="grid place-items-center rounded border border-violet-300/25 bg-violet-300/5 p-2 text-center text-[10px] font-black text-violet-200">WAV POR JUGADOR</span>:<label className={`ghost-action cursor-pointer p-3 text-center text-xs ${audio?"!border-lime-300/40 !text-lime-200":""}`}>{audio?"✓ WAV":"Subir WAV"}<input disabled={busy} type="file" accept="audio/wav,audio/x-wav,audio/mpeg" onChange={event=>void upload(event.target.files?.[0],scene.key,"audio",null)} className="sr-only"/></label>}</div>{(video?.previewUrl||(!personalizedIdentity&&audio?.previewUrl))&&<div className="mt-2 flex gap-2 text-[10px]">{video?.previewUrl&&<a target="_blank" rel="noreferrer" href={video.previewUrl} className="text-cyan-300">Probar video</a>}{!personalizedIdentity&&audio?.previewUrl&&<a target="_blank" rel="noreferrer" href={audio.previewUrl} className="text-violet-300">Escuchar audio</a>}</div>}{personalizedIdentity&&<p className="mt-2 text-[10px] text-slate-500">Seleccioná un invitado arriba para cargar el audio que dice su nombre.</p>}</article>})}</div>{selected?<div className="mt-6 border-t border-white/10 pt-5"><h3 className="font-black">AUDIOS PERSONALIZADOS · {selected.first_name.toUpperCase()}</h3><p className="mt-1 text-xs text-slate-500">El archivo se guarda con el ID privado del jugador, no con su nombre.</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{[{key:"IDENTITY_REVEAL",label:"Audio de identidad"},{key:"PLAYER_UNLOCKED",label:"Audio de bienvenida"},{key:"BIRTHDAY_HERO",label:"Audio especial"}].map(item=>{const assigned=find(item.key,"audio",selected.id);return <label key={item.key} className={`ghost-action cursor-pointer p-4 text-center text-xs ${assigned?"!border-lime-300/40 !text-lime-200":""}`}>{assigned?`✓ ${item.label}`:`Subir ${item.label}`}<input disabled={busy} type="file" accept="audio/wav,audio/x-wav,audio/mpeg" onChange={event=>void upload(event.target.files?.[0],item.key,"audio",selected.id)} className="sr-only"/></label>})}</div></div>:<p className="mt-6 border-t border-white/10 pt-5 text-sm text-violet-200">Para cargar audios con nombres, seleccioná primero un invitado en la lista.</p>}</details>;
 }

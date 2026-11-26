@@ -1,27 +1,17 @@
-import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { AdminApiError, adminErrorResponse, requireAdminEvent } from "@/lib/admin/server";
 import { receptionMediaSchema } from "@/lib/reception/schemas";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const AUDIO_MAX = 20 * 1024 * 1024;
+const uploadSchema = receptionMediaSchema.extend({ storagePath: z.string().min(1).max(300) });
 
 export async function POST(request: Request) {
   let uploadedPath: string | undefined;
   let createdAssetId: string | undefined;
   try {
-    const form = await request.formData();
-    const parsed = receptionMediaSchema.safeParse({
-      eventId: form.get("eventId"), participantId: form.get("participantId") ?? "",
-      sceneKey: form.get("sceneKey"), mediaKind: form.get("mediaKind"), cueMs: form.get("cueMs") ?? "0",
-      loop: form.get("loop") ?? "false", volume: form.get("volume") ?? "1", durationMs: form.get("durationMs") ?? "0",
-    });
+    const parsed = uploadSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Configuración inválida" }, { status: 400 });
-    const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) return Response.json({ error: "Seleccioná un archivo" }, { status: 400 });
-    const isVideo = parsed.data.mediaKind === "video";
-    const allowed = isVideo ? file.type === "video/mp4" : ["audio/wav", "audio/x-wav", "audio/mpeg"].includes(file.type);
-    if (!allowed) return Response.json({ error: isVideo ? "El video debe ser MP4" : "El audio debe ser WAV o MP3" }, { status: 400 });
-    if (file.size > (isVideo ? VIDEO_MAX : AUDIO_MAX)) return Response.json({ error: "El archivo supera el límite permitido" }, { status: 413 });
 
     const { supabase, event, userId } = await requireAdminEvent(parsed.data.eventId);
     const participantId = parsed.data.participantId || null;
@@ -32,10 +22,25 @@ export async function POST(request: Request) {
       const { data: participant } = await supabase.from("participants").select("id").eq("id", participantId).eq("event_id", event.id).maybeSingle();
       if (!participant) throw new AdminApiError(404, "PARTICIPANT_NOT_FOUND", "El invitado no pertenece al evento");
     }
-    const ext = isVideo ? "mp4" : file.type === "audio/mpeg" ? "mp3" : "wav";
-    uploadedPath = `${event.id}/reception/${participantId ?? "generic"}/${parsed.data.sceneKey.toLowerCase()}/${randomUUID()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("event-media").upload(uploadedPath, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
-    if (uploadError) throw new AdminApiError(502, "UPLOAD_FAILED", "No se pudo cargar el archivo");
+
+    // The browser sends the bytes straight to Storage. Only a fresh object in this
+    // event/scene folder can be attached to the scene by this small JSON request.
+    const isVideo = parsed.data.mediaKind === "video";
+    const prefix = `${event.id}/reception/${participantId ?? "generic"}/${parsed.data.sceneKey.toLowerCase()}/`;
+    const suffix = isVideo ? "mp4" : "(?:wav|mp3)";
+    const namePattern = new RegExp(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.${suffix}$`, "i");
+    if (!parsed.data.storagePath.startsWith(prefix) || !namePattern.test(parsed.data.storagePath.slice(prefix.length))) {
+      throw new AdminApiError(400, "INVALID_PATH", "La ruta del archivo no corresponde a la escena");
+    }
+    const { data: file, error: infoError } = await supabase.storage.from("event-media").info(parsed.data.storagePath);
+    if (infoError || !file) throw new AdminApiError(404, "FILE_MISSING", "No se encontró el archivo cargado");
+    const mimeType = file.contentType ?? file.metadata?.mimetype;
+    const size = Number(file.size ?? file.metadata?.size);
+    const validType = typeof mimeType === "string" && (isVideo ? mimeType === "video/mp4" : ["audio/wav", "audio/x-wav", "audio/mpeg"].includes(mimeType));
+    if (!validType || !Number.isFinite(size) || size <= 0 || size > (isVideo ? VIDEO_MAX : AUDIO_MAX)) {
+      throw new AdminApiError(400, "INVALID_FILE", "El archivo no tiene un formato o tamaño permitido");
+    }
+    uploadedPath = parsed.data.storagePath;
 
     let previousQuery = supabase.from("reception_media_assignments")
       .select("id,media_asset_id,media_assets(storage_path)").eq("event_id", event.id)
@@ -44,7 +49,7 @@ export async function POST(request: Request) {
     const { data: previous } = await previousQuery.maybeSingle();
     const { data: asset, error: assetError } = await supabase.from("media_assets").insert({
       event_id: event.id, name: `nexus-${parsed.data.sceneKey.toLowerCase()}-${parsed.data.mediaKind}`,
-      asset_type: isVideo ? "video" : "audio", storage_path: uploadedPath, mime_type: file.type,
+      asset_type: isVideo ? "video" : "audio", storage_path: uploadedPath, mime_type: mimeType,
       metadata: { durationMs: parsed.data.durationMs, source: "nexus-reception" }, created_by: userId,
     }).select("id").single();
     if (assetError || !asset) throw new AdminApiError(409, "ASSET_FAILED", "No se pudo registrar el recurso");
@@ -83,4 +88,3 @@ export async function POST(request: Request) {
     return adminErrorResponse(error);
   }
 }
-
