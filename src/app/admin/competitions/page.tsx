@@ -1,0 +1,6 @@
+import Link from "next/link";
+import {AppShell} from "@/components/ui/AppShell";
+import {getAdminPageContext} from "@/lib/admin/page-context";
+
+export const instant=false;
+export default async function CompetitionsPage(){const {eventName}=await getAdminPageContext("/admin/competitions");const modules=[["FIFA Legends Cup","/admin/tournaments","Torneos, llaves, partidos y campeones"],["Metegol Duo Cup","/admin/teams","Parejas fijas o rotativas"],["Roblox Quest Arena","/admin/activities","Desafíos, estaciones y rotaciones"],["Sorteos","/admin/draws","Previsualización y confirmación segura"]];return <AppShell active="admin"><main className="mx-auto w-full max-w-5xl px-5 pb-24"><Link href="/admin" className="text-xs font-bold text-cyan-300">← Centro de operaciones</Link><p className="eyebrow mt-4">Competencias · {eventName}</p><h1 className="display-title mt-2 text-5xl">ARENAS Y TORNEOS</h1><section className="mt-7 grid gap-4 sm:grid-cols-2">{modules.map(([title,href,description])=><Link key={href} href={href} className="panel cut p-6 transition hover:border-cyan-300/50"><h2 className="text-xl font-black">{title}</h2><p className="mt-3 text-sm text-slate-400">{description}</p><span className="mt-5 block text-xs font-black text-cyan-300">ABRIR →</span></Link>)}</section></main></AppShell>}

@@ -28,6 +28,16 @@ describe("TV protocol", () => {
     expect(scene.payload.videoLoop).toBe(true);
     expect(scene.sound).toMatchObject({url:"https://example.com/name.wav",cueMs:850,volume:.8});
   });
+  it("normalizes safe composed audio sequences", () => {
+    const scene = normalizeScene(row({sound:{sequence:[
+      {kind:"audio",url:"https://example.com/fixed.wav",durationMs:1200,volume:.8,label:"Fijo"},
+      {kind:"silence",durationMs:160,volume:0,label:"Pausa"},
+      {kind:"audio",url:"javascript:alert(1)",durationMs:500,volume:1,label:"Inseguro"},
+    ]}}));
+    expect(scene.sound.sequence).toHaveLength(2);
+    expect(scene.sound.sequence?.[0]).toMatchObject({kind:"audio",durationMs:1200,volume:.8});
+    expect(scene.sound.sequence?.[1]).toMatchObject({kind:"silence",durationMs:160});
+  });
   it("is idempotent and rejects stale scenes", () => {
     const scene = normalizeScene(row());
     expect(shouldAcceptScene(scene,"30000000-0000-4000-8000-000000000001",new Set([scene.id]))).toBe(false);

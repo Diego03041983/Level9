@@ -23,6 +23,8 @@ export function useAudioEngine() {
   const current = useRef<HTMLAudioElement | null>(null);
   const cueTimer = useRef<number | undefined>(undefined);
   const playbackGeneration = useRef(0);
+  const sequencePaused = useRef(false);
+  const releaseCurrentSegment = useRef<(() => void) | null>(null);
   const preloadedUrls = useRef(new Set<string>());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string>();
@@ -77,6 +79,23 @@ export function useAudioEngine() {
     try{const response=await fetch(url,{cache:"force-cache"});if(!response.ok)return;await response.arrayBuffer();preloadedUrls.current.add(url)}catch{/* HTMLAudio retries directly if cache warming is unavailable */}
   }, []);
   const playScene = useCallback(async (scene: DisplayScene) => {
+    if (scene.sound.sequence?.length) {
+      const generation=++playbackGeneration.current;
+      if(cueTimer.current)window.clearTimeout(cueTimer.current);
+      if(current.current){current.current.pause();current.current.currentTime=0}
+      for(const segment of scene.sound.sequence){
+        if(generation!==playbackGeneration.current)return;
+        if(segment.kind==="silence"){
+          let remaining=segment.durationMs;let previous=performance.now();
+          while(remaining>0&&generation===playbackGeneration.current){await new Promise<void>(resolve=>window.setTimeout(resolve,Math.min(50,remaining)));const now=performance.now();if(!sequencePaused.current)remaining-=now-previous;previous=now}
+          continue;
+        }
+        if(!segment.url)continue;
+        const audio=new Audio(segment.url);audio.preload="auto";audio.volume=segment.volume*volume;audio.muted=muted;current.current=audio;audio.load();
+        await new Promise<void>(resolve=>{const done=()=>{audio.removeEventListener("ended",done);audio.removeEventListener("error",done);if(releaseCurrentSegment.current===done)releaseCurrentSegment.current=null;resolve()};releaseCurrentSegment.current=done;audio.addEventListener("ended",done,{once:true});audio.addEventListener("error",done,{once:true});void audio.play().catch(done)});
+      }
+      return;
+    }
     if (scene.sound.url) {
       playbackGeneration.current += 1;
       const generation = playbackGeneration.current;
@@ -92,9 +111,9 @@ export function useAudioEngine() {
     const name = scene.sound.name ?? defaults[scene.scene_type.toUpperCase()];
     if (name) await play(name, { volume: scene.sound.volume, loop: scene.sound.loop });
   }, [muted,play,volume]);
-  const stop = useCallback(() => { playbackGeneration.current+=1;if(cueTimer.current)window.clearTimeout(cueTimer.current);if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
-  const pause = useCallback(() => { current.current?.pause(); }, []);
-  const resume = useCallback(async () => { if (current.current) await current.current.play(); }, []);
+  const stop = useCallback(() => { playbackGeneration.current+=1;sequencePaused.current=false;if(cueTimer.current)window.clearTimeout(cueTimer.current);releaseCurrentSegment.current?.();releaseCurrentSegment.current=null;if (current.current) { current.current.pause(); current.current.currentTime = 0; current.current = null; } }, []);
+  const pause = useCallback(() => { sequencePaused.current=true;current.current?.pause(); }, []);
+  const resume = useCallback(async () => { sequencePaused.current=false;if (current.current) await current.current.play(); }, []);
 
   return { ready, error, muted, volume, setMuted, setVolume, unlock, prepareScene, playScene, stop, pause, resume };
 }

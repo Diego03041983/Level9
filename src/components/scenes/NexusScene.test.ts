@@ -29,5 +29,6 @@ describe("NexusScene embedded video audio", () => {
   it("mutes embedded audio when the display is muted or a WAV is assigned", () => {
     expect(shouldMuteNexusVideo(scene(), true)).toBe(true);
     expect(shouldMuteNexusVideo(scene({ url: "https://example.com/avatar.wav" }), false)).toBe(true);
+    expect(shouldMuteNexusVideo(scene({ sequence: [{ kind: "audio", url: "https://example.com/fragment.wav", durationMs: 900, volume: 1, label: "Fragmento" }] }), false)).toBe(true);
   });
 });

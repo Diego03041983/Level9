@@ -21,6 +21,13 @@ export interface ScenePayload {
   imageUrl?: string;
   videoUrl?: string;
   videoLoop?: boolean;
+  eventKey?: string;
+  character?: string;
+  rehearsal?: boolean;
+  degraded?: boolean;
+  missingAudio?: string[];
+  station?: string;
+  round?: string;
   sessionId?: string;
   participantId?: string;
   firstName?: string;
@@ -33,7 +40,7 @@ export interface ScenePayload {
   state?: string;
   enabled?: boolean;
   volume?: number;
-  action?: "pause" | "resume" | "skip" | "clear_queue";
+  action?: "pause" | "resume" | "skip" | "clear_queue" | "stop" | "home";
   items?: string[];
 }
 
@@ -46,9 +53,11 @@ export interface DisplayPlayer {
 
 export interface DisplayScene extends Omit<SceneEventRow, "payload" | "sound" | "animation"> {
   payload: ScenePayload;
-  sound: { name?: string; url?: string; volume?: number; loop?: boolean; cueMs?: number };
+  sound: { name?: string; url?: string; volume?: number; loop?: boolean; cueMs?: number; totalDurationMs?:number; sequence?:DisplayAudioSegment[] };
   animation: Record<string, Json | undefined>;
 }
+
+export interface DisplayAudioSegment {kind:"audio"|"silence";url?:string;durationMs:number;volume:number;label:string}
 
 export interface DisplayPlaybackQueue {
   current: DisplayScene | null;
@@ -91,6 +100,13 @@ const player = (value: unknown): DisplayPlayer | undefined => {
   };
 };
 
+const audioSegment=(value:unknown):DisplayAudioSegment|undefined=>{
+  if(!value||typeof value!=="object"||Array.isArray(value))return undefined;
+  const raw=value as Record<string,unknown>;const kind=raw.kind==="audio"||raw.kind==="silence"?raw.kind:undefined;if(!kind)return undefined;
+  const url=safeUrl(raw.url);if(kind==="audio"&&!url)return undefined;
+  return{kind,url,durationMs:typeof raw.durationMs==="number"?Math.min(3_600_000,Math.max(0,raw.durationMs)):0,volume:typeof raw.volume==="number"?Math.min(1,Math.max(0,raw.volume)):1,label:typeof raw.label==="string"?raw.label.slice(0,120):kind==="silence"?"Pausa":"Audio"};
+};
+
 export function normalizeScene(row: SceneEventRow): DisplayScene {
   const raw = row.payload && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload as Record<string, unknown> : {};
   const rawSound = row.sound && typeof row.sound === "object" && !Array.isArray(row.sound) ? row.sound as Record<string, unknown> : {};
@@ -107,6 +123,13 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       imageUrl: safeUrl(raw.imageUrl),
       videoUrl: safeUrl(raw.videoUrl),
       videoLoop: raw.videoLoop === true,
+      eventKey: typeof raw.eventKey === "string" ? raw.eventKey.slice(0, 100) : undefined,
+      character: typeof raw.character === "string" ? raw.character.slice(0, 80) : undefined,
+      rehearsal: raw.rehearsal === true,
+      degraded: raw.degraded === true,
+      missingAudio: Array.isArray(raw.missingAudio) ? raw.missingAudio.filter((item):item is string=>typeof item==="string").slice(0,20).map(item=>item.slice(0,120)) : undefined,
+      station: typeof raw.station === "string" ? raw.station.slice(0, 100) : undefined,
+      round: typeof raw.round === "string" ? raw.round.slice(0, 80) : undefined,
       sessionId: typeof raw.sessionId === "string" ? raw.sessionId.slice(0, 100) : undefined,
       participantId: typeof raw.participantId === "string" ? raw.participantId : undefined,
       firstName: typeof raw.firstName === "string" ? raw.firstName.slice(0, 80) : undefined,
@@ -119,7 +142,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       state: typeof raw.state === "string" ? raw.state.slice(0, 80) : undefined,
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : undefined,
       volume: typeof raw.volume === "number" ? Math.min(1, Math.max(0, raw.volume)) : undefined,
-      action: ["pause","resume","skip","clear_queue"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
+      action: ["pause","resume","skip","clear_queue","stop","home"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
       items: Array.isArray(raw.items) ? raw.items.filter((item):item is string=>typeof item==="string").slice(0,32).map(item=>item.slice(0,100)) : undefined,
       player: player(raw.player),
       winner: player(raw.winner),
@@ -131,6 +154,8 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       volume: typeof rawSound.volume === "number" ? Math.min(1, Math.max(0, rawSound.volume)) : undefined,
       loop: rawSound.loop === true,
       cueMs: typeof rawSound.cueMs === "number" ? Math.min(600000, Math.max(0, rawSound.cueMs)) : undefined,
+      totalDurationMs: typeof rawSound.totalDurationMs === "number" ? Math.min(3_600_000, Math.max(0, rawSound.totalDurationMs)) : undefined,
+      sequence: Array.isArray(rawSound.sequence) ? rawSound.sequence.map(audioSegment).filter((item):item is DisplayAudioSegment=>Boolean(item)).slice(0,100) : undefined,
     },
     animation: rawAnimation,
   };

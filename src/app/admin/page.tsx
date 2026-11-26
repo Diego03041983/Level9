@@ -8,7 +8,7 @@ export const instant = false;
 type Membership = {
   event_id: string;
   role: string;
-  events: { name: string; subtitle: string | null } | { name: string; subtitle: string | null }[];
+  events: { name: string; subtitle: string | null; starts_at:string; ends_at:string; status:string } | { name: string; subtitle: string | null; starts_at:string; ends_at:string; status:string }[];
 };
 
 export default async function AdminPage() {
@@ -18,7 +18,7 @@ export default async function AdminPage() {
 
   const { data, error } = await supabase
     .from("event_users")
-    .select("event_id, role, events!inner(name, subtitle)")
+    .select("event_id, role, events!inner(name, subtitle, starts_at, ends_at, status)")
     .eq("user_id", auth.user.id)
     .in("role", ["owner", "admin", "operator"])
     .limit(1)
@@ -52,5 +52,5 @@ export default async function AdminPage() {
   }
 
   const event = Array.isArray(membership.events) ? membership.events[0] : membership.events;
-  return <AdminDashboard eventId={membership.event_id} eventName={event?.name ?? "Level 9"} eventSubtitle={event?.subtitle ?? null} role={membership.role} />;
+  return <AdminDashboard eventId={membership.event_id} eventName={event?.name ?? "Level 9"} eventSubtitle={event?.subtitle ?? null} eventStartsAt={event?.starts_at??null} eventEndsAt={event?.ends_at??null} eventStatus={event?.status??"draft"} role={membership.role} />;
 }

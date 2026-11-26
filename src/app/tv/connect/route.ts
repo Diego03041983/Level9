@@ -32,6 +32,17 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
   if (raw.videoPath) payload.videoUrl = await signedEventMediaUrl(supabase, raw.videoPath);
   if (raw.photoPath) payload.photoUrl = await signedPhotoUrl(supabase, raw.photoPath);
   if (rawSound.path) sound.url = await signedEventMediaUrl(supabase, rawSound.path);
+  if (Array.isArray(rawSound.sequence)) {
+    sound.sequence = await Promise.all(rawSound.sequence.map(async (value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const segment = value as Record<string, unknown>;
+      if (segment.kind !== "audio" || typeof segment.path !== "string") return segment;
+      const url = await signedEventMediaUrl(supabase, segment.path);
+      const hydrated: Record<string, unknown> = { ...segment, url };
+      delete hydrated.path;
+      return hydrated;
+    }));
+  }
 
   if (["PLAYER_UNLOCKED", "PLAYER_WELCOME"].includes(scene.scene_type.toUpperCase()) && !payload.player) {
     payload.player = {
@@ -40,6 +51,15 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
       number: typeof raw.playerNumber === "number" ? raw.playerNumber : undefined,
       photoUrl: await signedPhotoUrl(supabase, raw.photoPath),
     };
+  }
+
+  if (raw.player && typeof raw.player === "object" && !Array.isArray(raw.player)) {
+    const player = raw.player as Record<string, unknown>;
+    payload.player = { ...player, photoUrl: await signedPhotoUrl(supabase, player.photoPath) };
+  }
+  if (raw.winner && typeof raw.winner === "object" && !Array.isArray(raw.winner)) {
+    const winner = raw.winner as Record<string, unknown>;
+    payload.winner = { ...winner, photoUrl: await signedPhotoUrl(supabase, winner.photoPath) };
   }
 
   if (Array.isArray(raw.players)) {
@@ -94,7 +114,9 @@ export async function GET(request: NextRequest) {
     const visibleScenes = deviceScenes.filter((scene) => {
       if (!scene.scene_type.toUpperCase().startsWith("NEXUS_")) return true;
       const payload = scene.payload && typeof scene.payload === "object" && !Array.isArray(scene.payload) ? scene.payload as Record<string, unknown> : {};
-      return typeof payload.sessionId === "string" && liveSessionIds.has(payload.sessionId);
+      // Nexus scenes created by reception belong to a live reception session.
+      // Narrative Nexus/Glitch scenes have no sessionId and must remain visible.
+      return typeof payload.sessionId !== "string" || liveSessionIds.has(payload.sessionId);
     });
     const scenes = await Promise.all(visibleScenes.map((scene) => hydratePrivateMedia(authenticated.supabase, scene as SceneRecord)));
     await Promise.all([
