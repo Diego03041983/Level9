@@ -25,6 +25,9 @@ export async function POST(request: Request) {
 
     const { supabase, event, userId } = await requireAdminEvent(parsed.data.eventId);
     const participantId = parsed.data.participantId || null;
+    if (parsed.data.sceneKey === "IDENTITY_REVEAL" && parsed.data.mediaKind === "audio" && !participantId) {
+      return Response.json({ error: "El audio de identidad debe asociarse a un jugador" }, { status: 400 });
+    }
     if (participantId) {
       const { data: participant } = await supabase.from("participants").select("id").eq("id", participantId).eq("event_id", event.id).maybeSingle();
       if (!participant) throw new AdminApiError(404, "PARTICIPANT_NOT_FOUND", "El invitado no pertenece al evento");
