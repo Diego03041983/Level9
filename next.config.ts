@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async redirects() {
+    return [{
+      source: "/app",
+      destination: "/level9-tv.apk",
+      permanent: false,
+    }];
+  },
   async headers() {
     return [{
       source: "/assets/video/:path*",
