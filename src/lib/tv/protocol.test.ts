@@ -17,7 +17,7 @@ describe("TV protocol", () => {
   });
   it("removes unsafe media URLs", () => expect(normalizeScene(row()).payload.player?.photoUrl).toBeUndefined());
   it("accepts local video assets and rejects unsafe video URLs", () => {
-    expect(normalizeScene(row({payload:{videoUrl:"/assets/video/desafio-robux-glitch-v1.mp4"}})).payload.videoUrl).toBe("/assets/video/desafio-robux-glitch-v1.mp4");
+    expect(normalizeScene(row({payload:{videoUrl:"/assets/video/desafio-robux-glitch-v2.mp4"}})).payload.videoUrl).toBe("/assets/video/desafio-robux-glitch-v2.mp4");
     expect(normalizeScene(row({payload:{videoUrl:"javascript:alert(1)"}})).payload.videoUrl).toBeUndefined();
     expect(normalizeScene(row({payload:{videoUrl:"//inseguro.example/video.mp4"}})).payload.videoUrl).toBeUndefined();
   });
