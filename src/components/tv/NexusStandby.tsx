@@ -3,17 +3,20 @@
 import { useEffect, useRef } from 'react';
 import face from './data/face.json';
 import './NexusStandby.css';
+import {breachIntensity,type VoicePosition} from '@/lib/tv/breach-intensity';
 
 const eyes = [[33,160,158,133,153,144,161,159,157,173,155,154,145,163],[263,387,385,362,380,373,388,386,384,398,382,381,374,390]];
 const eyeCenters=eyes.map(indices=>indices.reduce((out,index)=>out.map((v,i)=>v+face.vertices[index][i]/indices.length),[0,0,0]));
 const eyeByVertex=new Map(eyes.flatMap((indices,eye)=>indices.map(index=>[index,eye] as const)));
 
-export function NexusStandby({getSpeechLevel, speaking=false}:{getSpeechLevel?:()=>number;speaking?:boolean}={}){
+export function NexusStandby({getSpeechLevel, getInterferencePosition, speaking=false}:{getSpeechLevel?:()=>number;getInterferencePosition?:()=>VoicePosition;speaking?:boolean}={}){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     const canvas=canvasRef.current;if(!canvas)return;
     const ctx=canvas.getContext('2d',{alpha:false});if(!ctx)return;
     let width=0,height=0,frame=0,lastFrame=0,visible=true,mouth=0;
+    const snapshot=document.createElement("canvas");
+    const snapshotContext=getInterferencePosition?snapshot.getContext("2d"):null;
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
     const resize=()=>{width=canvas.clientWidth;height=canvas.clientHeight;const ratio=Math.min(window.devicePixelRatio||1,1.25);canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);ctx.setTransform(ratio,0,0,ratio,0,0)};
     const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
@@ -21,7 +24,8 @@ export function NexusStandby({getSpeechLevel, speaking=false}:{getSpeechLevel?:(
     const draw=(now:number)=>{
       frame=requestAnimationFrame(draw);
       if(!visible||now-lastFrame<(reduced.matches?1000:1000/30)||!width||!height)return;
-      lastFrame=now;const t=reduced.matches?0:now/1000;
+      lastFrame=now;const position=getInterferencePosition?.();
+      const t=reduced.matches?0:position?position.time:now/1000;
       const speechLevel=reduced.matches?0:Math.min(1,Math.max(0,getSpeechLevel?.()??0));
       mouth+=(speechLevel-mouth)*(speechLevel>mouth?.65:.5);
       if(mouth<.005)mouth=0;
@@ -105,10 +109,42 @@ export function NexusStandby({getSpeechLevel, speaking=false}:{getSpeechLevel?:(
         ctx.strokeStyle=`rgba(53,188,231,${.19-r*.028})`;ctx.lineWidth=.7;ctx.stroke();
       }
       const fade=ctx.createLinearGradient(0,height*.76,0,height);fade.addColorStop(0,'#030f2100');fade.addColorStop(1,'#030f21');ctx.fillStyle=fade;ctx.fillRect(0,height*.76,width,height*.24);
+      if(position && snapshotContext){
+        const {progress,strength,collapse}=breachIntensity(position);
+        canvas.dataset.interferenceProgress=progress.toFixed(4);
+        canvas.dataset.interferenceStrength=strength.toFixed(4);
+        // Slice the actual rendered face; no second renderer or video decoder.
+        if(snapshot.width!==canvas.width||snapshot.height!==canvas.height){snapshot.width=canvas.width;snapshot.height=canvas.height}
+        snapshotContext.drawImage(canvas,0,0);
+        const ratio=canvas.width/width;
+        const signalTime=reduced.matches?0:position.time;
+        const surge=(.5+.5*Math.sin(signalTime*2.1))**6;
+        const bands=3+Math.floor(strength*19);
+        for(let i=0;i<bands;i++){
+          const y=((i*.618+signalTime*.027)%1)*height;
+          const h=Math.min(height-y,4+strength*(12+(i%4)*8));
+          const offset=reduced.matches?0:Math.sin(i*2.7+signalTime*2.3)*width*(.003+strength*strength*.055)*(.3+surge);
+          ctx.drawImage(snapshot,0,y*ratio,canvas.width,h*ratio,offset,y,width,h);
+          ctx.fillStyle=i%3===0?`rgba(242,55,84,${strength*.14})`:`rgba(2,8,18,${strength*(.12+surge*.5)})`;
+          ctx.fillRect(0,y,width,h);
+          ctx.fillStyle=`rgba(80,222,255,${strength*.45})`;ctx.fillRect(Math.max(0,offset),y,width,1);
+        }
+        // Slow dark signal losses and growing red edge glow, without white flashes.
+        const warning=ctx.createRadialGradient(cx,cy,height*.23,cx,cy,height*.8);
+        warning.addColorStop(0,'#e82d4400');warning.addColorStop(1,`rgba(232,45,68,${strength*.38})`);
+        ctx.fillStyle=warning;ctx.fillRect(0,0,width,height);
+        const loss=Math.max(collapse,Math.max(0,progress-.4)*surge*.65);
+        if(loss>0){ctx.fillStyle=`rgba(1,5,13,${Math.min(.96,loss)})`;ctx.fillRect(0,0,width,height)}
+        if(collapse>0&&!reduced.matches){
+          const h=Math.max(2,height*(1-collapse));
+          ctx.drawImage(snapshot,0,0,canvas.width,canvas.height,0,(height-h)/2,width,h);
+          ctx.fillStyle=`rgba(1,5,13,${collapse*.9})`;ctx.fillRect(0,0,width,height);
+        }
+      }
     };
     frame=requestAnimationFrame(draw);
     return()=>{cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility)};
-  },[getSpeechLevel]);
+  },[getSpeechLevel,getInterferencePosition]);
   return <div className="nexus-presence" aria-label={speaking?"NEXUS, locución con rostro animado":"NEXUS presente, rostro digital en movimiento"}>
     <canvas ref={canvasRef} aria-hidden="true"/>
     <div className="nexus-presence-label"><span>INTELIGENCIA DEL SISTEMA</span><p>NEXUS<span>—9</span></p><i/><small>{speaking?"CANAL DE VOZ": "EN LÍNEA"}</small></div>

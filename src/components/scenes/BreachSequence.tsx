@@ -3,12 +3,14 @@
 import { NexusStandby } from "@/components/tv/NexusStandby";
 import { SceneVideo } from "./SceneVideo";
 import "./BreachSequence.css";
+import type { VoicePosition } from "@/lib/tv/breach-intensity";
 
 export interface BreachPlayback {
   video: boolean;
   error?: string;
   attempt: number;
   retry: () => void;
+  getPosition: () => VoicePosition;
 }
 
 export function BreachSequence({ src, playback, paused, muted, volume, getSpeechLevel, onPlaying, onEnded, onError }: {
@@ -17,7 +19,7 @@ export function BreachSequence({ src, playback, paused, muted, volume, getSpeech
 }) {
   if (playback.video && src && !playback.error) return <SceneVideo key={playback.attempt} src={src} paused={paused} muted={muted} volume={volume} onPlaying={onPlaying} onEnded={onEnded} onError={onError} stallTimeoutMs={45000} />;
   return <div className={`nexus-breach ${paused || playback.error ? "nexus-breach-paused" : ""}`} data-breach-phase="nexus">
-    <div className="nexus-breach-transmission"><NexusStandby speaking={!playback.error} getSpeechLevel={playback.error ? undefined : getSpeechLevel} /></div>
+    <div className="nexus-breach-transmission"><NexusStandby speaking={!playback.error} getSpeechLevel={playback.error ? undefined : getSpeechLevel} getInterferencePosition={playback.getPosition} /></div>
     <div className="nexus-breach-noise" aria-hidden="true" />
     <div className="nexus-breach-band" aria-hidden="true" />
     <div className="nexus-breach-vignette" aria-hidden="true" />

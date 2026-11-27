@@ -8,7 +8,7 @@ const base = process.env.TV_TEST_URL || "http://localhost:3100";
 const media = process.env.BREACH_MEDIA_DIR;
 if (!media) throw new Error("Set BREACH_MEDIA_DIR to the folder containing anomaly-detected.wav and nexus-breach-v2");
 const fixtures = [
-  ["voice.mp3", "audio/mpeg", await readFile(`${media}/nexus-breach-v2/nexus-anomaly-alarm.mp3`)],
+  ["voice.mp3", "audio/mpeg", await readFile(`${media}/nexus-breach-v3/nexus-anomaly-alarm.mp3`)],
   ["dry.wav", "audio/wav", await readFile(`${media}/anomaly-detected.wav`)],
   ["glitch.mp4", "video/mp4", await readFile(`${media}/nexus-breach-v2/glitch-intervention-tv.mp4`)],
 ];
@@ -55,12 +55,19 @@ try {
     assert.equal(await page.locator("video").count(), 0, "Glitch started over Nexus");
     await command("pause");
     const stoppedAt = await page.evaluate(() => window.testAudios.find(a => a.src.includes("voice.mp3")).currentTime);
+    await page.waitForTimeout(100);
+    const frozenStrength = await page.locator("canvas").getAttribute("data-interference-strength");
     await page.waitForTimeout(700);
+    assert.equal(await page.locator("canvas").getAttribute("data-interference-strength"), frozenStrength, "interference advanced during pause");
     assert.ok(Math.abs(await page.evaluate(() => window.testAudios.find(a => a.src.includes("voice.mp3")).currentTime) - stoppedAt) < .03, "voice did not pause");
     await command("resume");
     await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
     if (!native) await page.screenshot({ path: "/tmp/level9-breach-nexus.png" });
     await page.evaluate(() => { window.testAudios.find(a => a.src.includes("voice.mp3")).playbackRate = 4; });
+    const earlyStrength = Number(await page.locator("canvas").getAttribute("data-interference-strength"));
+    await page.waitForFunction(() => Number(document.querySelector("canvas")?.dataset.interferenceProgress) > .78);
+    assert.ok(Number(await page.locator("canvas").getAttribute("data-interference-strength")) > earlyStrength + .4);
+    if (!native) await page.screenshot({ path: "/tmp/level9-breach-escalated.png" });
     await page.locator("video").waitFor({ timeout: 25000 });
     assert.ok(await page.evaluate(() => window.testAudios.find(a => a.src.includes("voice.mp3")).ended), "video mounted before Nexus audio ended");
     assert.equal(await page.locator("canvas").count(), 0);

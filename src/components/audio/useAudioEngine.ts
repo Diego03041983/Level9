@@ -88,6 +88,7 @@ export function useAudioEngine() {
     if (!scene.sound.url && !scene.sound.sequence?.length && asset) speech.current?.prepare(pathFor(asset));
   }, []);
   const getSpeechLevel = useCallback(() => speechEnabled.current && !sequencePaused.current ? speech.current?.level(current.current) ?? 0 : 0, []);
+  const getVoicePosition = useCallback(() => ({time:current.current?.currentTime??0,duration:current.current?.duration??0}), []);
   const playScene = useCallback(async (scene: DisplayScene) => {
     speechEnabled.current = sceneUsesNexusFace(scene) || sceneIsBreachSequence(scene);
     prepareSpeech(scene);
@@ -152,5 +153,5 @@ export function useAudioEngine() {
   const pause = useCallback(() => { sequencePaused.current=true;current.current?.pause(); }, []);
   const resume = useCallback(async () => { sequencePaused.current=false;if (current.current && !current.current.ended) await current.current.play(); }, []);
 
-  return { ready, error, muted, volume, setMuted, setVolume, unlock, playScene, stop, pause, resume, prepareSpeech, getSpeechLevel };
+  return { ready, error, muted, volume, setMuted, setVolume, unlock, playScene, stop, pause, resume, prepareSpeech, getSpeechLevel, getVoicePosition };
 }
