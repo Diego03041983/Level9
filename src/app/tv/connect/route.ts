@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {dispatchAudiovisualEvent} from "@/lib/audiovisual/dispatch";
 
 const noStore = { "Cache-Control": "no-store, private" };
 const denied = () => NextResponse.json({ error: "DISPLAY_SESSION_INVALID" }, { status: 401, headers: noStore });
@@ -134,7 +135,9 @@ export async function GET(request: NextRequest) {
     });
     const scenes = await Promise.all(visibleScenes.map((scene) => hydratePrivateMedia(authenticated.supabase, scene as SceneRecord)));
     // Heartbeats handle presence every 15s; recovery should be read-only and fast.
-    return NextResponse.json({ eventId: requestedEvent, deviceId: authenticated.device.id, scenes }, { headers: noStore });
+    const {data:mission}=await authenticated.supabase.from("missions").select("id,name,duration_seconds,status,started_at,paused_at,paused_seconds,extension_seconds,unlocked_at,completed_at").eq("event_id",requestedEvent).order("created_at",{ascending:false}).limit(1).maybeSingle();
+    const {data:digits}=mission?await authenticated.supabase.from("mission_digit_slots").select("slot,digit").eq("mission_id",mission.id).order("slot"):{data:[]};
+    return NextResponse.json({ eventId: requestedEvent, deviceId: authenticated.device.id, scenes, mission:mission?{...mission,digits}:null }, { headers: noStore });
   } catch (error) {
     console.error("TV state recovery failed", error);
     return NextResponse.json({ error: "DISPLAY_STATE_UNAVAILABLE" }, { status: 503, headers: noStore });
@@ -166,6 +169,21 @@ export async function POST(request: NextRequest) {
       p_error_message: typeof body.error === "string" ? body.error.slice(0, 500) : null,
     });
     if (error) throw error;
+    if(body.status==="completed"){
+      const {data:scene}=await authenticated.supabase.from("scene_events").select("event_id,payload,scene_type,created_by").eq("id",body.sceneId).eq("event_id",authenticated.device.event_id).maybeSingle();
+      const payload=scene?.payload&&typeof scene.payload==="object"&&!Array.isArray(scene.payload)?scene.payload as Record<string,unknown>:{};
+      if(payload.eventKey==="MISSION_STARTED"){
+        await authenticated.supabase.from("missions").update({status:"live",started_at:now,paused_at:null}).eq("event_id",authenticated.device.event_id).eq("status","ready");
+      }
+      if(scene?.scene_type==="GLITCH_DEFEATED"&&typeof payload.missionId==="string"&&scene.created_by){
+        const key=`mission:${payload.missionId}:restored`;
+        const{data:previous}=await authenticated.supabase.from("audiovisual_events").select("id").eq("event_id",authenticated.device.event_id).eq("idempotency_key",key).maybeSingle();
+        if(!previous)await dispatchAudiovisualEvent(authenticated.supabase,{eventId:authenticated.device.event_id,eventKey:"NEXUS_RESTORED",context:{participantIds:[],title:"NEXUS RESTAURADO"},rehearsal:false,confirm:true,idempotencyKey:key,userId:scene.created_by});
+      }
+      if(payload.eventKey==="NEXUS_RESTORED"){
+        await authenticated.supabase.from("missions").update({status:"finished"}).eq("event_id",authenticated.device.event_id).eq("status","unlocked");
+      }
+    }
     return NextResponse.json({ ok: true }, { headers: noStore });
   } catch (error) {
     console.error("TV acknowledgement failed", error);

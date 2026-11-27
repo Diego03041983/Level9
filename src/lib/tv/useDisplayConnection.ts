@@ -8,6 +8,7 @@ import { PAIRING_STORAGE_KEY, parsePairing, type DisplayPairing } from "./protoc
 import { startScenePolling } from "./scene-poller";
 
 export type ConnectionStatus = "unpaired" | "config_missing" | "connecting" | "realtime" | "polling" | "offline" | "revoked";
+export type DisplayMission={id:string;name:string;status:string;duration_seconds:number;started_at:string|null;paused_at:string|null;paused_seconds:number;extension_seconds:number;unlocked_at:string|null;completed_at:string|null;digits:{slot:number;digit:string|null}[]};
 
 const pairingFromFragment = () => {
   const value = new URLSearchParams(location.hash.slice(1)).get("pairing");
@@ -21,6 +22,7 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [lastSeen, setLastSeen] = useState<Date>();
   const [pendingCount, setPendingCount] = useState(0);
+  const [mission,setMission]=useState<DisplayMission|null>(null);
   const requestInFlight = useRef(false);
   const publicConfigured = hasSupabasePublicConfig();
 
@@ -36,7 +38,8 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
       const response = await fetch(`/tv/connect?eventId=${encodeURIComponent(pairing.eventId)}`, { headers: headers(), cache: "no-store", signal: controller.signal });
       if (response.status === 401) { setStatus("revoked"); return; }
       if (!response.ok) throw new Error("state unavailable");
-      const data = await response.json() as { scenes: SceneEventRow[] };
+      const data = await response.json() as { scenes: SceneEventRow[];mission?:DisplayMission|null };
+      setMission(data.mission??null);
       setPendingCount(data.scenes.length); setLastSeen(new Date());
       for (const scene of data.scenes) callback.current(scene);
       setStatus((current) => current === "realtime" ? current : "polling");
@@ -88,5 +91,5 @@ export function useDisplayConnection(onScene: (scene: SceneEventRow) => void) {
   }, [pairing, publicConfigured, requestState]);
 
   const forgetPairing = useCallback(() => { localStorage.removeItem(PAIRING_STORAGE_KEY); setPairing(null); setStatus("unpaired"); }, []);
-  return { pairing, status: pairing && !publicConfigured ? "config_missing" as const : status, lastSeen, pendingCount, acknowledge, heartbeat, forgetPairing, refresh: requestState };
+  return { pairing, status: pairing && !publicConfigured ? "config_missing" as const : status, lastSeen, pendingCount, mission, acknowledge, heartbeat, forgetPairing, refresh: requestState };
 }

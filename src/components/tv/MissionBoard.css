@@ -1,0 +1,14 @@
+.mission-board{height:100%;display:grid;place-items:center;background:radial-gradient(circle at 50% 5%,#14234e,#060c20 65%);color:#f3f7ff;font-family:var(--font-geist-sans),sans-serif;padding:4vw}
+.mission-board-inner{width:min(1150px,100%);text-align:center}
+.mission-board-system{color:#ff414f;font-size:clamp(15px,2vw,29px);font-weight:900;letter-spacing:.14em;text-shadow:0 0 22px #ff314f66}
+.mission-board h1{font-size:clamp(29px,3.5vw,58px);font-weight:900;margin:1.5vh 0}
+.mission-board-clock{font-family:monospace;font-weight:900;font-size:clamp(65px,9vw,140px);line-height:1.1;color:#ffd633;text-shadow:0 0 26px #f7ce293b}
+.mission-board-caption{color:#a8b7d0;font-size:clamp(15px,1.6vw,24px);letter-spacing:.2em}
+.mission-board-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:1.2vw;margin:4vh 0 2vh}
+.mission-board-slot{min-width:0;min-height:clamp(160px,28vh,280px);display:flex;flex-direction:column;align-items:center;justify-content:space-around;border:2px solid currentColor;border-radius:18px;background:#17233d99;box-shadow:0 0 25px currentColor inset;padding:12px;color:#ff404b}
+.mission-board-slot.slot-2{color:#29bfff}.mission-board-slot.slot-3{color:#ba80ff}.mission-board-slot.slot-4{color:#9be34a}
+.mission-board-slot b{font-size:clamp(15px,1.8vw,25px)}.mission-board-slot strong{font-size:clamp(65px,8vw,120px);line-height:1}.mission-board-slot small{font-size:clamp(10px,1.2vw,17px);letter-spacing:.1em;color:#c7d0e0}
+.mission-board-slot.revealed{background:#22364a;box-shadow:0 0 35px currentColor;border-width:3px}
+.mission-board-progress{height:13px;background:#263754;border-radius:20px;overflow:hidden}.mission-board-progress i{height:100%;display:block;background:linear-gradient(90deg,#f43f5e,#22d3ee,#a3e635);transition:width .7s}
+.mission-board-status{color:#ff525d;font-weight:800;letter-spacing:.16em;font-size:clamp(15px,1.6vw,24px);margin-top:2vh}
+@media(max-width:650px){.mission-board-slots{grid-template-columns:repeat(2,1fr)}.mission-board-slot{min-height:120px}.mission-board-slot strong{font-size:55px}}

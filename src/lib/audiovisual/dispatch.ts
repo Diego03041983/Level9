@@ -23,20 +23,14 @@ async function applyOperationalMutation(supabase:SupabaseClient,input:DispatchIn
     ]);return;
   }
   if(input.eventKey==="EVENT_CLOSING"){await supabase.from("events").update({status:"finished"}).eq("id",input.eventId);return}
-  if(input.eventKey==="MISSION_STARTED"){
-    const {data:mission}=await supabase.from("missions").select("id,status,started_at,paused_at,paused_seconds").eq("event_id",input.eventId).in("status",["ready","paused"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
-    if(mission)await supabase.from("missions").update({status:"live",started_at:mission.started_at??new Date().toISOString(),paused_at:null}).eq("id",mission.id);
-    return;
-  }
+  if(input.eventKey==="MISSION_STARTED")return;
   if(input.eventKey==="MISSION_TIME_EXTENSION"){
     const seconds=typeof input.context.extra?.seconds==="number"?Math.max(60,Math.min(3600,input.context.extra.seconds)):300;
     const {data:mission}=await supabase.from("missions").select("id,extension_seconds").eq("event_id",input.eventId).in("status",["live","paused"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
     if(mission)await supabase.from("missions").update({extension_seconds:Number(mission.extension_seconds??0)+seconds}).eq("id",mission.id);
     return;
   }
-  if(input.eventKey==="MISSION_COMPLETED"||input.eventKey==="NEXUS_RESTORED"){
-    await supabase.from("missions").update({status:"finished",completed_at:new Date().toISOString()}).eq("event_id",input.eventId).in("status",["live","paused","unlocked"]);
-  }
+  if(input.eventKey==="NEXUS_RESTORED")return;
 }
 
 export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:DispatchInput){
@@ -48,6 +42,18 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
   if(requiresConfirmation)return{eventId:eventRecord.id,awaitingConfirmation:true};
 
   const announcement=await buildAnnouncement(supabase,input.eventId,input.templateKey??definition.templateKey,input.context);
+  if(["MISSION_TEAM_DRAW","MISSION_STARTED"].includes(input.eventKey)&&announcement.degraded){
+    await supabase.from("audiovisual_events").update({status:"failed",error_message:"Falta la locución de Glitch"}).eq("id",eventRecord.id);
+    throw new Error("Cargá primero el audio de Glitch para este mensaje");
+  }
+  if(input.eventKey==="MISSION_STARTED"&&!input.rehearsal){
+    const{data:mission}=await supabase.from("missions").select("id,status").eq("event_id",input.eventId).eq("status","ready").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    if(!mission){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Misión sin configurar"}).eq("id",eventRecord.id);throw new Error("Configurá primero la misión")}
+    const{data:slots}=await supabase.from("mission_digit_slots").select("slot,team_id").eq("mission_id",mission.id);
+    if(slots?.length!==4||slots.some(slot=>!slot.team_id)){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Faltan equipos"}).eq("id",eventRecord.id);throw new Error("Asigná los cuatro equipos antes de comenzar")}
+    const{data:members}=await supabase.from("team_members").select("team_id").in("team_id",slots.map(slot=>slot.team_id!));
+    if(slots.some(slot=>!members?.some(member=>member.team_id===slot.team_id))){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Equipos sin integrantes"}).eq("id",eventRecord.id);throw new Error("Cada equipo necesita al menos un jugador")}
+  }
   if(definition.policy==="replace_equivalent" || input.eventKey==="MISSION_BREACH"){
     const {data:older}=await supabase.from("audiovisual_events").select("scene_event_id").eq("event_id",input.eventId).eq("event_key",input.eventKey).in("status",["queued","playing"]).neq("id",eventRecord.id);
     const sceneIds=(older??[]).map(item=>item.scene_event_id).filter((id):id is string=>typeof id==="string");
@@ -68,7 +74,7 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
     }
   }
   const photoScene=["VERSUS","VERSUS_SCREEN","DUO_VERSUS_SCREEN","PLAYER_ROSTER","TOURNAMENT_BRACKET"].includes(definition.sceneType);
-  if(!videoPath&&!photoScene&&!usesNexusFace(input.eventKey)){
+  if(!videoPath&&!photoScene&&!usesNexusFace(input.eventKey)&&definition.category!=="mission"){
     const characterVideoKey=announcement.template.character_name.toLowerCase().includes("glitch")?"character-glitch-video":"character-nexus-video";
     const {data:characterVideo}=await supabase.from("media_assets").select("storage_path").eq("event_id",input.eventId).eq("logical_key",characterVideoKey).eq("status","active").maybeSingle();
     videoPath=characterVideo?.storage_path;

@@ -1,0 +1,8 @@
+.glitch-defeated{height:100%;position:relative;overflow:hidden;display:grid;place-content:center;text-align:center;background:radial-gradient(circle,#330d49,#070915 65%);color:#f4f1ff}
+.glitch-defeated-grid{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 7px,#aa25f519 7px 8px);animation:glitch-collapse .7s infinite}
+.glitch-defeated-symbol{position:absolute;left:50%;top:46%;font-size:clamp(170px,33vw,450px);font-weight:1000;color:#bb38f9;text-shadow:10px 0 #36e9f0,-10px 0 #fa334e;line-height:1;transition:opacity .2s}
+.glitch-defeated-symbol span{position:absolute;left:35%;color:#f24c69;opacity:.9}
+.glitch-defeated-shards{position:absolute;inset:0;background:repeating-conic-gradient(from 20deg at 50% 45%,transparent 0 8deg,#d235ec28 9deg 10deg,transparent 11deg 19deg);animation:glitch-collapse .35s infinite}
+.glitch-defeated h1{z-index:1;font-size:clamp(42px,8vw,120px);font-weight:1000;color:#ff526b;text-shadow:0 0 40px #fa365e}.glitch-defeated p{z-index:1;font:700 clamp(14px,1.8vw,26px) monospace;letter-spacing:.24em;color:#70edfb;margin-top:22px}
+@keyframes glitch-collapse{50%{transform:translateX(10px);filter:hue-rotate(50deg)}}
+@media(prefers-reduced-motion:reduce){.glitch-defeated *{animation:none!important}}
