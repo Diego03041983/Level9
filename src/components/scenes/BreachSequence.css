@@ -1,0 +1,14 @@
+.nexus-breach{position:relative;height:100%;overflow:hidden;background:#030f21}
+.nexus-breach-transmission{height:100%;animation:nexus-signal-drop 9s linear infinite}
+.nexus-breach-noise{pointer-events:none;position:absolute;inset:0;opacity:.13;background:repeating-linear-gradient(0deg,transparent 0 3px,#75dfff55 3px 4px);animation:nexus-noise-drift 4s linear infinite}
+.nexus-breach-band{pointer-events:none;position:absolute;inset:-30% 0;background:linear-gradient(transparent 40%,#3eeeff24 44%,#030f21cc 46%,transparent 48%);animation:nexus-signal-band 7s linear infinite}
+.nexus-breach-vignette{pointer-events:none;position:absolute;inset:0;box-shadow:inset 0 0 100px #fa343829;animation:nexus-alarm-glow 3s ease-in-out infinite}
+.nexus-breach .nexus-presence-label small{color:#ffad8e}
+.nexus-breach-error{position:absolute;inset:auto 5% 8% auto;width:min(440px,80%);padding:24px;background:#071322ed;border:1px solid #ec865b80;border-radius:16px;text-align:center}
+.nexus-breach-error p{font-size:23px;font-weight:800;color:#ffd2ba}.nexus-breach-error small{display:block;color:#b9c7d1;margin-top:10px}
+.nexus-breach-paused *{animation-play-state:paused!important}
+@keyframes nexus-signal-drop{0%,19%,22%,56%,59%,86%,89%,100%{transform:translateX(0);filter:none;opacity:1}20%,57%,87%{transform:translateX(-7px);filter:hue-rotate(30deg);opacity:.35}21%,58%,88%{transform:translateX(5px);filter:saturate(.2);opacity:.7}}
+@keyframes nexus-noise-drift{to{transform:translateY(4px)}}
+@keyframes nexus-signal-band{from{transform:translateY(-45%)}to{transform:translateY(45%)}}
+@keyframes nexus-alarm-glow{0%,100%{opacity:.25}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.nexus-breach *{animation:none!important}.nexus-breach-band{display:none}}

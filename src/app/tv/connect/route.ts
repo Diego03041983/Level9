@@ -37,12 +37,14 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
     : {};
   const sound = { ...rawSound };
 
-  const [videoUrl, photoUrl, audioUrl] = await Promise.all([
+  const [videoUrl, photoUrl, audioUrl, analysisUrl] = await Promise.all([
     signedEventMediaUrl(supabase, raw.videoPath), signedPhotoUrl(supabase, raw.photoPath), signedEventMediaUrl(supabase, rawSound.path),
+    signedEventMediaUrl(supabase, rawSound.analysisPath),
   ]);
   if (raw.videoPath) payload.videoUrl = videoUrl;
   if (raw.photoPath) payload.photoUrl = photoUrl;
   if (rawSound.path) sound.url = audioUrl;
+  if (rawSound.analysisPath) sound.analysisUrl = analysisUrl;
   if (Array.isArray(rawSound.sequence)) {
     sound.sequence = await Promise.all(rawSound.sequence.map(async (value) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -84,6 +86,7 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
   delete payload.videoPath;
   delete payload.photoPath;
   delete sound.path;
+  delete sound.analysisPath;
   return { ...scene, payload, sound };
 }
 

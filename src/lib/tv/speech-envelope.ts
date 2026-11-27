@@ -33,7 +33,7 @@ export class SpeechEnvelopeReader {
   private decoder: OfflineAudioContext | null = null;
   private controller = new AbortController();
 
-  prepare(url: string) {
+  prepare(url: string, analysisUrl = url) {
     const key = new URL(url, location.href).href;
     if (this.cache.has(key) || this.pending.has(key) || this.controller.signal.aborted) return;
     this.pending.add(key);
@@ -41,7 +41,7 @@ export class SpeechEnvelopeReader {
     this.queue = this.queue.then(async () => {
       try {
         if (this.controller.signal.aborted) return;
-        const response = await fetch(key, { signal: this.controller.signal, cache: "force-cache" });
+        const response = await fetch(analysisUrl, { signal: this.controller.signal, cache: "force-cache" });
         if (!response.ok) return;
         this.decoder ??= new OfflineAudioContext(1, 1, 16000);
         const buffer = await this.decoder.decodeAudioData(await response.arrayBuffer());

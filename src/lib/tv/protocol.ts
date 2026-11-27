@@ -22,6 +22,7 @@ export interface ScenePayload {
   imageUrl?: string;
   videoUrl?: string;
   videoLoop?: boolean;
+  breachSequence?: boolean;
   eventKey?: string;
   character?: string;
   rehearsal?: boolean;
@@ -54,7 +55,7 @@ export interface DisplayPlayer {
 
 export interface DisplayScene extends Omit<SceneEventRow, "payload" | "sound" | "animation"> {
   payload: ScenePayload;
-  sound: { name?: string; url?: string; volume?: number; loop?: boolean; cueMs?: number; totalDurationMs?:number; sequence?:DisplayAudioSegment[] };
+  sound: { name?: string; url?: string; analysisUrl?: string; volume?: number; loop?: boolean; cueMs?: number; totalDurationMs?:number; sequence?:DisplayAudioSegment[] };
   animation: Record<string, Json | undefined>;
 }
 
@@ -124,6 +125,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       imageUrl: safeUrl(raw.imageUrl),
       videoUrl: safeUrl(raw.videoUrl),
       videoLoop: raw.videoLoop === true,
+      breachSequence: raw.breachSequence === true,
       eventKey: typeof raw.eventKey === "string" ? raw.eventKey.slice(0, 100) : undefined,
       character: typeof raw.character === "string" ? raw.character.slice(0, 80) : undefined,
       rehearsal: raw.rehearsal === true,
@@ -152,6 +154,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
     sound: {
       name: typeof rawSound.name === "string" ? rawSound.name : undefined,
       url: safeUrl(rawSound.url),
+      analysisUrl: safeUrl(rawSound.analysisUrl),
       volume: typeof rawSound.volume === "number" ? Math.min(1, Math.max(0, rawSound.volume)) : undefined,
       loop: rawSound.loop === true,
       cueMs: typeof rawSound.cueMs === "number" ? Math.min(600000, Math.max(0, rawSound.cueMs)) : undefined,
@@ -166,6 +169,10 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
 // player photos or a bracket instead.
 export function sceneUsesNexusFace(scene: DisplayScene): boolean {
   return usesNexusFace(scene.payload.eventKey ?? "");
+}
+
+export function sceneIsBreachSequence(scene: DisplayScene): boolean {
+  return scene.payload.eventKey === "MISSION_BREACH" && scene.payload.breachSequence === true;
 }
 
 export function sceneRendersVideo(scene: DisplayScene): boolean {
@@ -203,23 +210,34 @@ const uniqueScenes = (scenes: DisplayScene[]) => scenes.filter((scene, index, al
 
 export function queueDisplayScene(state: DisplayPlaybackQueue, incoming: DisplayScene): DisplayPlaybackQueue {
   if (!state.current) return { current: incoming, pending: state.pending };
-  if (state.current.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;
+  const active = state.current;
+  if (active.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;
 
-  const sameSessionScenes = [state.current, ...state.pending].filter(scene => sameNexusSession(scene, incoming));
+  // Repeating the intervention replaces the previous attempt, never queues it
+  // for an unexpected replay after the new Glitch film ends.
+  if (incoming.payload.eventKey === "MISSION_BREACH") {
+    const previous = [active, ...state.pending].filter(scene => scene.payload.eventKey === "MISSION_BREACH");
+    if (previous.some(scene => compareDisplaySceneOrder(incoming, scene) <= 0)) return state;
+    const pending = state.pending.filter(scene => scene.payload.eventKey !== "MISSION_BREACH");
+    if (active.payload.eventKey === "MISSION_BREACH") return { current: incoming, pending };
+    state = { ...state, pending };
+  }
+
+  const sameSessionScenes = [active, ...state.pending].filter(scene => sameNexusSession(scene, incoming));
   const newestSameSession = sameSessionScenes.reduce<DisplayScene | undefined>((newest, scene) => !newest || compareDisplaySceneOrder(scene, newest) > 0 ? scene : newest, undefined);
   if (newestSameSession && compareDisplaySceneOrder(incoming, newestSameSession) <= 0) return state;
 
   const pending = sameSessionScenes.length
     ? state.pending.filter(scene => !sameNexusSession(scene, incoming))
     : state.pending;
-  const replacesCurrent = sameNexusSession(state.current, incoming);
+  const replacesCurrent = sameNexusSession(active, incoming);
   const interrupts = incoming.interrupt_policy === "force"
-    || (incoming.interrupt_policy === "interrupt_lower" && incoming.priority > state.current.priority);
+    || (incoming.interrupt_policy === "interrupt_lower" && incoming.priority > active.priority);
 
   if (replacesCurrent) return { current: incoming, pending };
-  if (interrupts) return { current: incoming, pending: uniqueScenes([state.current, ...pending]) };
+  if (interrupts) return { current: incoming, pending: uniqueScenes([active, ...pending]) };
   return {
-    current: state.current,
+    current: active,
     pending: uniqueScenes([...pending, incoming]).sort((left, right) => right.priority - left.priority || Date.parse(left.scheduled_at) - Date.parse(right.scheduled_at)),
   };
 }

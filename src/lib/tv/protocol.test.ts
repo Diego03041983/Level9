@@ -11,6 +11,13 @@ const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
 });
 
 describe("TV protocol", () => {
+  it("replaces an old Glitch attempt and ignores late delivery of that attempt", () => {
+    const old = normalizeScene(row({ payload: { eventKey: "MISSION_BREACH" }, created_at: "2026-11-27T12:00:00Z" }));
+    const next = normalizeScene(row({ id: "10000000-0000-4000-8000-000000000099", payload: { eventKey: "MISSION_BREACH", breachSequence: true }, created_at: "2026-11-27T12:01:00Z" }));
+    const state = queueDisplayScene({ current: old, pending: [] }, next);
+    expect(state).toEqual({ current: next, pending: [] });
+    expect(queueDisplayScene(state, old)).toEqual(state);
+  });
   it("uses the speaking face for interactive acts, with only restored Nexus included from Mission", () => {
     for (const event of audiovisualEventCatalog) {
       const scene = normalizeScene(row({ scene_type: event.sceneType, payload: { eventKey: event.key, videoUrl: "/old-character.mp4" } }));

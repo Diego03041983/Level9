@@ -22,6 +22,7 @@ export interface SceneVideoProps {
   onEnded: () => void;
   onError: (message: string) => void;
   className?: string;
+  stallTimeoutMs?: number;
 }
 
 export function SceneVideo(props: SceneVideoProps) {
@@ -34,6 +35,7 @@ export function SceneVideo(props: SceneVideoProps) {
     let disposed = false;
     let lastProgress = performance.now();
     let lastTime = -1;
+    let completed = false;
     const native = window.Level9Native;
     const video = videoRef.current;
     const id = `video-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -41,7 +43,7 @@ export function SceneVideo(props: SceneVideoProps) {
     const fail = (message: string) => { if (!disposed) callbacks.current.onError(message); };
     const progress = () => { lastProgress = performance.now(); };
     const playing = () => { progress(); callbacks.current.onPlaying(); };
-    const ended = () => { if (!callbacks.current.loop) callbacks.current.onEnded(); };
+    const ended = () => { if (!callbacks.current.loop) { completed = true; callbacks.current.onEnded(); } };
     const nativeEvent = (event: Event) => {
       const detail = (event as CustomEvent<{id:string;type:string;message?:string}>).detail;
       if (detail?.id !== id || disposed) return;
@@ -70,9 +72,10 @@ export function SceneVideo(props: SceneVideoProps) {
     const watchdog = window.setInterval(() => {
       if (callbacks.current.paused) { progress(); return; }
       if (!native && video && video.currentTime !== lastTime) { lastTime = video.currentTime; progress(); }
-      if ((!video?.ended || native) && performance.now() - lastProgress > 15000) {
+      const timeout = callbacks.current.stallTimeoutMs ?? 15000;
+      if (!completed && (!video?.ended || native) && performance.now() - lastProgress > timeout) {
         clearInterval(watchdog);
-        fail("El video no avanzó durante 15 segundos. Revisá la conexión o el modo de reproducción de la app.");
+        fail(`El video no avanzó durante ${timeout / 1000} segundos. Revisá la conexión o el modo de reproducción de la app.`);
       }
     }, 1000);
     return () => {
