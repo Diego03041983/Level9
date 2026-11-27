@@ -22,6 +22,7 @@ export interface ScenePayload {
   imageUrl?: string;
   videoUrl?: string;
   videoLoop?: boolean;
+  audioBoundVideo?: boolean;
   breachSequence?: boolean;
   eventKey?: string;
   character?: string;
@@ -125,6 +126,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       imageUrl: safeUrl(raw.imageUrl),
       videoUrl: safeUrl(raw.videoUrl),
       videoLoop: raw.videoLoop === true,
+      audioBoundVideo: raw.audioBoundVideo === true,
       breachSequence: raw.breachSequence === true,
       eventKey: typeof raw.eventKey === "string" ? raw.eventKey.slice(0, 100) : undefined,
       character: typeof raw.character === "string" ? raw.character.slice(0, 80) : undefined,

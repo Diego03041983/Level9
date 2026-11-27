@@ -32,7 +32,8 @@ if(parsed.data.operation==="playClue"){
  const{data:asset}=await supabase.from("media_assets").select("id,name,storage_path,logical_key,metadata").eq("id",parsed.data.assetId).eq("event_id",event.id).eq("status","active").eq("asset_type","audio").maybeSingle();
  if(!asset?.logical_key?.startsWith("mission-clue-"))throw new AdminApiError(404,"NOT_FOUND","Audio de pista no disponible");
  const duration=typeof asset.metadata==="object"&&asset.metadata&&"durationMs" in asset.metadata?Number(asset.metadata.durationMs):0;
- const{error}=await supabase.from("scene_events").insert({event_id:event.id,scene_type:"MISSION_CLUE",payload:{title:asset.name,eventKey:"MISSION_CLUE_AUDIO"},priority:100,duration_ms:Math.max(6000,Math.min(300000,duration||6000)),sound:{path:asset.storage_path,volume:1},animation:{preset:"glitch"},interrupt_policy:"force",status:"queued",idempotency_key:`mission:${mission.id}:clue:${asset.id}:${crypto.randomUUID()}`,created_by:userId});
+ const{data:glitchVideo}=await supabase.from("media_assets").select("storage_path").eq("event_id",event.id).eq("logical_key","character-glitch-video").eq("status","active").maybeSingle();
+ const{error}=await supabase.from("scene_events").insert({event_id:event.id,scene_type:"MISSION_CLUE",payload:{title:asset.name,eventKey:"MISSION_CLUE_AUDIO",videoPath:glitchVideo?.storage_path,videoLoop:Boolean(glitchVideo),audioBoundVideo:Boolean(glitchVideo)},priority:100,duration_ms:Math.max(6000,Math.min(300000,duration||6000)),sound:{path:asset.storage_path,volume:1},animation:{preset:"glitch"},interrupt_policy:"force",status:"queued",idempotency_key:`mission:${mission.id}:clue:${asset.id}:${crypto.randomUUID()}`,created_by:userId});
  if(error)throw new AdminApiError(500,"SCENE_FAILED","No se pudo enviar la pista");
  return Response.json({sent:true});
 }

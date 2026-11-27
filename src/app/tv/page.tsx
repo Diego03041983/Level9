@@ -68,12 +68,12 @@ export default function TvPage(){
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[current?.id,started]);
 
-  useEffect(()=>{if(!started||!current||readySceneId!==current.id)return;const skipping=skipSignal>handledSkip.current;if(skipping){handledSkip.current=skipSignal;finishScene(current,"skipped");return}if(sceneIsBreachSequence(current))return;if(sceneRendersVideo(current)&&(!current.payload.videoLoop||playingSceneId!==current.id))return;if(!sceneRendersVideo(current)&&(current.sound.sequence?.length||(current.sound.url&&!current.sound.loop)))return;if(sceneTimer.current.sceneId!==current.id)sceneTimer.current={sceneId:current.id,remainingMs:current.duration_ms??10_000};if(playbackPaused)return;const beganAt=Date.now();const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneTimer.current.remainingMs);return()=>{clearTimeout(timer);if(sceneTimer.current.sceneId===current.id)sceneTimer.current.remainingMs=Math.max(0,sceneTimer.current.remainingMs-(Date.now()-beganAt))}},[current,finishScene,playbackPaused,playingSceneId,readySceneId,skipSignal,started]);
+  useEffect(()=>{if(!started||!current||readySceneId!==current.id)return;const skipping=skipSignal>handledSkip.current;if(skipping){handledSkip.current=skipSignal;finishScene(current,"skipped");return}if(sceneIsBreachSequence(current)||current.payload.audioBoundVideo)return;if(sceneRendersVideo(current)&&(!current.payload.videoLoop||playingSceneId!==current.id))return;if(!sceneRendersVideo(current)&&(current.sound.sequence?.length||(current.sound.url&&!current.sound.loop)))return;if(sceneTimer.current.sceneId!==current.id)sceneTimer.current={sceneId:current.id,remainingMs:current.duration_ms??10_000};if(playbackPaused)return;const beganAt=Date.now();const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneTimer.current.remainingMs);return()=>{clearTimeout(timer);if(sceneTimer.current.sceneId===current.id)sceneTimer.current.remainingMs=Math.max(0,sceneTimer.current.remainingMs-(Date.now()-beganAt))}},[current,finishScene,playbackPaused,playingSceneId,readySceneId,skipSignal,started]);
   useEffect(()=>{
-    if(!started||!current||readySceneId!==current.id||playbackPaused||sceneRendersVideo(current)||sceneIsBreachSequence(current))return;
+    if(!started||!current||readySceneId!==current.id||playbackPaused||(sceneRendersVideo(current)&&!current.payload.audioBoundVideo)||sceneIsBreachSequence(current))return;
     if(!current.sound.sequence?.length&&(!current.sound.url||current.sound.loop))return;
     if(audioEndedSceneId===current.id){
-      const timer=window.setTimeout(()=>finishScene(current,"completed"),1200);
+      const timer=window.setTimeout(()=>finishScene(current,"completed"),current.payload.audioBoundVideo?350:1200);
       return()=>clearTimeout(timer);
     }
     const watchdog=window.setTimeout(()=>finishScene(current,"failed","El audio no terminó de reproducirse"),Math.max(30_000,(current.duration_ms??0)+15_000));
