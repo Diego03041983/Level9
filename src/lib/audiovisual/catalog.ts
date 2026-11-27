@@ -105,3 +105,8 @@ export const initialAudioCatalog = [
 ] as const;
 
 export const findEventDefinition=(key:string)=>audiovisualEventCatalog.find(item=>item.key===key);
+
+export function usesNexusFace(eventKey: string): boolean {
+  const definition = findEventDefinition(eventKey);
+  return Boolean(definition && (definition.category !== "mission" || eventKey === "NEXUS_RESTORED"));
+}

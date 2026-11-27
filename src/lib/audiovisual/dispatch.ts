@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { findEventDefinition } from "./catalog";
+import { findEventDefinition, usesNexusFace } from "./catalog";
 import { buildAnnouncement } from "./engine";
 
 type Context={participantIds:string[];title?:string;subtitle?:string;activity?:string;station?:string;round?:string;score?:string;items?:string[];extra?:Record<string,string|number|boolean|null>};
@@ -60,7 +60,7 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
     combinedBreachAudioPath=combinedMedia?.find(item=>item.logical_key==="mission-breach-combined-audio")?.storage_path;
   }
   const photoScene=["VERSUS","VERSUS_SCREEN","DUO_VERSUS_SCREEN","PLAYER_ROSTER","TOURNAMENT_BRACKET"].includes(definition.sceneType);
-  if(!videoPath&&!photoScene){
+  if(!videoPath&&!photoScene&&!usesNexusFace(input.eventKey)){
     const characterVideoKey=announcement.template.character_name.toLowerCase().includes("glitch")?"character-glitch-video":"character-nexus-video";
     const {data:characterVideo}=await supabase.from("media_assets").select("storage_path").eq("event_id",input.eventId).eq("logical_key",characterVideoKey).eq("status","active").maybeSingle();
     videoPath=characterVideo?.storage_path;

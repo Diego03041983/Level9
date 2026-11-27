@@ -8,12 +8,12 @@ const eyes = [[33,160,158,133,153,144,161,159,157,173,155,154,145,163],[263,387,
 const eyeCenters=eyes.map(indices=>indices.reduce((out,index)=>out.map((v,i)=>v+face.vertices[index][i]/indices.length),[0,0,0]));
 const eyeByVertex=new Map(eyes.flatMap((indices,eye)=>indices.map(index=>[index,eye] as const)));
 
-export function NexusStandby(){
+export function NexusStandby({getSpeechLevel, speaking=false}:{getSpeechLevel?:()=>number;speaking?:boolean}={}){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     const canvas=canvasRef.current;if(!canvas)return;
     const ctx=canvas.getContext('2d',{alpha:false});if(!ctx)return;
-    let width=0,height=0,frame=0,lastFrame=0,visible=true;
+    let width=0,height=0,frame=0,lastFrame=0,visible=true,mouth=0;
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
     const resize=()=>{width=canvas.clientWidth;height=canvas.clientHeight;const ratio=Math.min(window.devicePixelRatio||1,1.25);canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);ctx.setTransform(ratio,0,0,ratio,0,0)};
     const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
@@ -22,6 +22,10 @@ export function NexusStandby(){
       frame=requestAnimationFrame(draw);
       if(!visible||now-lastFrame<(reduced.matches?1000:1000/30)||!width||!height)return;
       lastFrame=now;const t=reduced.matches?0:now/1000;
+      const speechLevel=reduced.matches?0:Math.min(1,Math.max(0,getSpeechLevel?.()??0));
+      mouth+=(speechLevel-mouth)*(speechLevel>mouth?.65:.5);
+      if(mouth<.005)mouth=0;
+      canvas.dataset.speechLevel=mouth.toFixed(3);
       const cx=width*.5,cy=height*.42,scale=Math.min(height*.0405,width*.043);
       const yaw=Math.sin(t*.24)*.105,pitch=Math.sin(t*.31)*.025,roll=Math.sin(t*.19)*.012;
       const blink=1-.94*Math.exp(-Math.pow(((t+1.2)%6-5.65)/.095,2));
@@ -46,13 +50,17 @@ export function NexusStandby(){
         for(let i=0;i<180;i++){
           const u=i/179,x=cx+side*(width*.22+u*width*.28);
           const envelope=Math.pow(Math.sin(u*Math.PI),2);
-          const y=height*.49+Math.sin(i*.71-t*2)*Math.sin(i*.13+t)*height*.055*envelope;
+          const y=height*.49+Math.sin(i*.71-t*2)*Math.sin(i*.13+t)*height*(.025+mouth*.06)*envelope;
           if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
         }
         ctx.strokeStyle='rgba(51,218,244,.45)';ctx.lineWidth=.85;ctx.stroke();
       }
       const points=face.vertices.map((p,index)=>{
         const v=[...p],eye=eyeByVertex.get(index);
+        // Open the lower lip and jaw around the mouth, with a softer upper lip.
+        const lipWeight=Math.exp(-Math.pow(v[0]/2.5,4));
+        if(v[1]<-4.3)v[1]-=mouth*.95*lipWeight*Math.exp(-Math.pow((v[1]+4.7)/4.2,2));
+        else if(v[1]<-3.1)v[1]+=mouth*.15*lipWeight;
         if(eye!==undefined)v[1]=eyeCenters[eye][1]+(v[1]-eyeCenters[eye][1])*blink;
         return project(v);
       });
@@ -100,10 +108,10 @@ export function NexusStandby(){
     };
     frame=requestAnimationFrame(draw);
     return()=>{cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility)};
-  },[]);
-  return <div className="nexus-presence" aria-label="NEXUS presente, rostro digital en movimiento">
+  },[getSpeechLevel]);
+  return <div className="nexus-presence" aria-label={speaking?"NEXUS, locución con rostro animado":"NEXUS presente, rostro digital en movimiento"}>
     <canvas ref={canvasRef} aria-hidden="true"/>
-    <div className="nexus-presence-label"><span>INTELIGENCIA DEL SISTEMA</span><p>NEXUS<span>—9</span></p><i/><small>EN LÍNEA</small></div>
+    <div className="nexus-presence-label"><span>INTELIGENCIA DEL SISTEMA</span><p>NEXUS<span>—9</span></p><i/><small>{speaking?"CANAL DE VOZ": "EN LÍNEA"}</small></div>
     <div className="nexus-presence-caption">SANTIAGO · LEVEL 9</div>
   </div>;
 }

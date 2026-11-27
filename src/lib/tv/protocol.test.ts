@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScene, parsePairing, queueDisplayScene, sceneRendersVideo, shouldAcceptScene, type DisplayScene } from "./protocol";
+import { normalizeScene, parsePairing, queueDisplayScene, sceneRendersVideo, sceneUsesNexusFace, shouldAcceptScene, type DisplayScene } from "./protocol";
+import { audiovisualEventCatalog } from "../audiovisual/catalog";
 import type { SceneEventRow } from "@/types/database";
 
 const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
@@ -10,6 +11,17 @@ const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
 });
 
 describe("TV protocol", () => {
+  it("uses the speaking face for interactive acts, with only restored Nexus included from Mission", () => {
+    for (const event of audiovisualEventCatalog) {
+      const scene = normalizeScene(row({ scene_type: event.sceneType, payload: { eventKey: event.key, videoUrl: "/old-character.mp4" } }));
+      const face = event.category !== "mission" || event.key === "NEXUS_RESTORED";
+      expect(sceneUsesNexusFace(scene), event.key).toBe(face);
+      expect(sceneRendersVideo(scene), event.key).toBe(!face);
+    }
+    const reception = normalizeScene(row({ scene_type: "NEXUS_DETECTION", payload: { sessionId: "reception", videoUrl: "/registration.mp4" } }));
+    expect(sceneUsesNexusFace(reception)).toBe(false);
+    expect(sceneRendersVideo(reception)).toBe(true);
+  });
   it("rejects incomplete pairing data", () => expect(parsePairing('{"eventId":"no"}')).toBeNull());
   it("accepts a valid pairing envelope", () => {
     const pairing = parsePairing(JSON.stringify({eventId:"20000000-0000-4000-8000-000000000001",deviceId:"30000000-0000-4000-8000-000000000001",sessionToken:"x".repeat(32)}));

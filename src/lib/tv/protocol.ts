@@ -1,4 +1,5 @@
 import type { Json, SceneEventRow } from "@/types/database";
+import { usesNexusFace } from "../audiovisual/catalog";
 
 export const PAIRING_STORAGE_KEY = "level9.display.pairing.v1";
 export const PROCESSED_STORAGE_KEY = "level9.display.processed.v1";
@@ -163,7 +164,12 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
 
 // An announcement may carry a character video even when its renderer shows
 // player photos or a bracket instead.
+export function sceneUsesNexusFace(scene: DisplayScene): boolean {
+  return usesNexusFace(scene.payload.eventKey ?? "");
+}
+
 export function sceneRendersVideo(scene: DisplayScene): boolean {
+  if (sceneUsesNexusFace(scene)) return false;
   if (!scene.payload.videoUrl) return false;
   const type = scene.scene_type.toUpperCase();
   if (type.startsWith("NEXUS_")) return true;
