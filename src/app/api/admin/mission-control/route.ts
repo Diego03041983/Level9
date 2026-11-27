@@ -5,7 +5,7 @@ import {dispatchAudiovisualEvent} from "@/lib/audiovisual/dispatch";
 
 const operationSchema=z.discriminatedUnion("operation",[
   z.object({operation:z.literal("configure"),eventId:z.uuid(),name:z.string().min(2).max(120),story:z.string().max(2000).default(""),code:z.string().regex(/^\d{4}$/),durationSeconds:z.number().int().min(300).max(10800)}),
-  z.object({operation:z.enum(["pause","resume","tick","complete"]),eventId:z.uuid(),missionId:z.uuid()}),
+  z.object({operation:z.enum(["pause","resume","tick","complete","reset"]),eventId:z.uuid(),missionId:z.uuid()}),
   z.object({operation:z.literal("extend"),eventId:z.uuid(),missionId:z.uuid(),seconds:z.number().int().min(60).max(3600)}),
   z.object({operation:z.literal("assignTeam"),eventId:z.uuid(),missionId:z.uuid(),slot:z.number().int().min(1).max(4),memberIds:z.array(z.uuid()).max(20)}),
   z.object({operation:z.literal("revealDigit"),eventId:z.uuid(),missionId:z.uuid(),slot:z.number().int().min(1).max(4),digit:z.string().regex(/^\d$/)}),
@@ -19,6 +19,11 @@ export async function GET(request:NextRequest){try{const{supabase,event}=await r
 
 export async function POST(request:Request){try{const parsed=operationSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return Response.json({error:parsed.error.issues[0]?.message},{status:400});const{supabase,event,userId}=await requireAdminEvent(parsed.data.eventId);if(parsed.data.operation==="configure"){const{data,error}=await supabase.rpc("configure_level9_mission",{p_event_id:event.id,p_name:parsed.data.name,p_story:parsed.data.story,p_secret_code:parsed.data.code,p_duration_seconds:parsed.data.durationSeconds});if(error)throw new AdminApiError(409,"CONFIGURE_FAILED","No se pudo configurar la misión");return Response.json({missionId:data})}
 const{data:rawMission}=await supabase.from("missions").select("id,name,story,duration_seconds,status,started_at,paused_at,paused_seconds,extension_seconds,warnings_sent,unlocked_at,completed_at").eq("id",parsed.data.missionId).eq("event_id",event.id).maybeSingle();if(!rawMission)throw new AdminApiError(404,"NOT_FOUND","Misión inexistente");const mission=rawMission as unknown as Mission;
+if(parsed.data.operation==="reset"){
+ const{error}=await supabase.rpc("reset_level9_mission_run",{p_event_id:event.id,p_mission_id:mission.id});
+ if(error)throw new AdminApiError(409,"RESET_FAILED","No se pudo reiniciar la misión: "+error.message);
+ return Response.json({reset:true});
+}
 if(parsed.data.operation==="pause"){if(mission.status!=="live")throw new AdminApiError(409,"INVALID_STATE","La misión no está activa");await supabase.from("missions").update({status:"paused",paused_at:new Date().toISOString()}).eq("id",mission.id);return Response.json({paused:true})}
 if(parsed.data.operation==="resume"){if(mission.status!=="paused"||!mission.paused_at)throw new AdminApiError(409,"INVALID_STATE","La misión no está pausada");const added=Math.max(0,Math.floor((Date.now()-Date.parse(mission.paused_at))/1000));await supabase.from("missions").update({status:"live",paused_at:null,paused_seconds:mission.paused_seconds+added}).eq("id",mission.id);return Response.json({resumed:true})}
 if(parsed.data.operation==="extend"){await supabase.from("missions").update({extension_seconds:mission.extension_seconds+parsed.data.seconds}).eq("id",mission.id);await dispatchAudiovisualEvent(supabase,{eventId:event.id,eventKey:"MISSION_TIME_EXTENSION",context:{participantIds:[],extra:{seconds:parsed.data.seconds}},rehearsal:false,confirm:true,idempotencyKey:`mission:${mission.id}:extension:${mission.extension_seconds+parsed.data.seconds}`,userId});return Response.json({extended:true})}

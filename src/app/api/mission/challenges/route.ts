@@ -14,14 +14,14 @@ const sequences=[
 ];
 type State={slot:number;complete:boolean;digit:string|null;correct:boolean;sequenceStep:number;cards:{index:number;symbol:number|null;matched:boolean}[]|null;memoryAttempts:number;memoryMatched:number;memoryLockedUntil:string|null};
 
-function tokenFor(missionId:string,slot:number){
+function tokenFor(missionId:string,slot:number,runId:string){
   const secret=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!secret)throw new Error("Falta la clave privada del servidor");
-  return createHmac("sha256",secret).update(`mission-challenge:v1:${missionId}:${slot}`).digest("hex");
+  return createHmac("sha256",secret).update(`mission-challenge:v1:${missionId}:${slot}:${runId}`).digest("hex");
 }
-function validToken(missionId:string,slot:number,token:string|null){
+function validToken(missionId:string,slot:number,runId:string,token:string|null){
   if(!token||!/^[0-9a-f]{64}$/.test(token))return false;
-  return timingSafeEqual(Buffer.from(token,"hex"),Buffer.from(tokenFor(missionId,slot),"hex"));
+  return timingSafeEqual(Buffer.from(token,"hex"),Buffer.from(tokenFor(missionId,slot,runId),"hex"));
 }
 function shuffled<T>(items:T[]){
   const result=[...items];
@@ -35,14 +35,14 @@ function present(state:State){
 async function missionFor(id?:string){
   const db=createAdminClient();
   if(id){
-    const {data:mission}=await db.from("missions").select("id,event_id,status,name").eq("id",id).maybeSingle();
+    const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id").eq("id",id).maybeSingle();
     if(!mission)return null;
     const {data:event}=await db.from("events").select("id").eq("id",mission.event_id).eq("is_demo",false).maybeSingle();
     return event?mission:null;
   }
   const {data:event}=await db.from("events").select("id").eq("is_demo",false).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(!event)return null;
-  const {data:mission}=await db.from("missions").select("id,event_id,status,name").eq("event_id",event.id)
+  const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id").eq("event_id",event.id)
     .in("status",["ready","live","paused","unlocked","finished"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
   return mission;
 }
@@ -75,7 +75,7 @@ export async function GET(request:Request){
     if(!mission)return Response.json({error:"Misión no disponible"},{status:404,headers:noStore});
     const slot=Number(url.searchParams.get("slot"));
     if(Number.isInteger(slot)&&slot>=1&&slot<=4){
-      if(!validToken(mission.id,slot,request.headers.get("x-mission-team-token")))return Response.json({error:"Acceso al equipo no validado"},{status:403,headers:noStore});
+      if(!validToken(mission.id,slot,mission.challenge_run_id,request.headers.get("x-mission-team-token")))return Response.json({error:"Acceso al equipo no validado"},{status:403,headers:noStore});
       const state=await run(mission.id,slot,"state");
       return Response.json({mission:{id:mission.id,name:mission.name,status:mission.status},state:present(state)},{headers:noStore});
     }
@@ -102,10 +102,10 @@ export async function POST(request:Request){
       }
       const state=await run(missionId,slot,"open");
       if(state.complete&&mission.status!=="unlocked")await settleFinale(missionId,mission.event_id);
-      return Response.json({accepted:true,token:tokenFor(missionId,slot),state:present(state)},{headers:noStore});
+      return Response.json({accepted:true,token:tokenFor(missionId,slot,mission.challenge_run_id),state:present(state)},{headers:noStore});
     }
     if(mission.status==="unlocked")return Response.json({error:"La misión ya terminó"},{status:409,headers:noStore});
-    if(!validToken(missionId,slot,request.headers.get("x-mission-team-token")))return Response.json({error:"Volvé a validar el acceso del equipo"},{status:403,headers:noStore});
+    if(!validToken(missionId,slot,mission.challenge_run_id,request.headers.get("x-mission-team-token")))return Response.json({error:"Volvé a validar el acceso del equipo"},{status:403,headers:noStore});
     if(action==="sequence"&&slot!==2||action==="flip"&&slot!==3)return Response.json({error:"Desafío incorrecto"},{status:400,headers:noStore});
     if(action==="sequence"&&!parsed.data.answer||action==="flip"&&index===undefined)return Response.json({error:"Falta la respuesta"},{status:400,headers:noStore});
     const {count}=await createAdminClient().from("mission_digit_slots").select("slot",{head:true,count:"exact"}).eq("mission_id",missionId).not("digit","is",null);
