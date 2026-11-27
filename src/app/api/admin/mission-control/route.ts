@@ -43,8 +43,17 @@ if(parsed.data.operation==="playClue"){
  return Response.json({sent:true});
 }
 if(parsed.data.operation==="revealDigit"){
+ const{count:revealedCount,error:countError}=await supabase.from("mission_digit_slots").select("slot",{count:"exact",head:true}).eq("mission_id",mission.id).not("digit","is",null);
+ if(countError)throw new AdminApiError(500,"DIGIT_READ_FAILED","No se pudo comprobar el estado del código");
+ if(revealedCount===3){
+  const{data:finalVideo,error:videoLookupError}=await supabase.from("media_assets").select("storage_path").eq("event_id",event.id).eq("logical_key","glitch-defeat-video").eq("asset_type","video").eq("status","active").maybeSingle();
+  if(videoLookupError||!finalVideo?.storage_path)throw new AdminApiError(409,"FINAL_VIDEO_MISSING","Falta el video final de Glitch. No se desbloqueó el último dígito");
+  const{error:fileError}=await supabase.storage.from("event-media").info(finalVideo.storage_path);
+  if(fileError)throw new AdminApiError(409,"FINAL_VIDEO_MISSING","El video final de Glitch no está disponible. No se desbloqueó el último dígito");
+ }
  const{data:completed,error}=await supabase.rpc("reveal_mission_digit",{p_event_id:event.id,p_mission_id:mission.id,p_slot:parsed.data.slot,p_digit:parsed.data.digit});
  if(error)throw new AdminApiError(409,"DIGIT_FAILED",error.message);
+ if(completed){const{error:expireError}=await supabase.from("scene_events").update({status:"expired"}).eq("event_id",event.id).in("status",["queued","delivered","playing"]).neq("scene_type","GLITCH_DEFEATED");if(expireError)console.error("Mission completed but old scenes could not be expired",expireError)}
  return Response.json({completed:Boolean(completed)});
 }
 if(parsed.data.operation==="complete"){await dispatchAudiovisualEvent(supabase,{eventId:event.id,eventKey:"MISSION_COMPLETED",context:{participantIds:[],title:"TESORO RECUPERADO"},rehearsal:false,confirm:true,idempotencyKey:`mission:${mission.id}:manual-complete`,userId});await dispatchAudiovisualEvent(supabase,{eventId:event.id,eventKey:"NEXUS_RESTORED",context:{participantIds:[],title:"NEXUS RESTAURADO"},rehearsal:false,confirm:true,idempotencyKey:`mission:${mission.id}:restored`,userId});return Response.json({completed:true})}

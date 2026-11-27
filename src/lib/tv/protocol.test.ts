@@ -88,4 +88,17 @@ describe("TV protocol", () => {
     expect(state.current?.id).toBe(incoming.id);
     expect(state.pending.map(scene => scene.id)).toEqual([active.id]);
   });
+  it("plays the Glitch finale before Nexus without replaying earlier scenes", () => {
+    const clue = normalizeScene(row({id:"10000000-0000-4000-8000-000000000041",scene_type:"MISSION_CLUE",created_at:"2026-11-27T15:00:00.000Z"}));
+    const warning = normalizeScene(row({id:"10000000-0000-4000-8000-000000000042",scene_type:"MISSION_ALERT",created_at:"2026-11-27T15:00:10.000Z"}));
+    const finale = normalizeScene(row({id:"10000000-0000-4000-8000-000000000043",scene_type:"GLITCH_DEFEATED",payload:{videoUrl:"https://example.com/glitch-final.mp4",videoLoop:false},duration_ms:70_933,interrupt_policy:"force",created_at:"2026-11-27T15:00:20.000Z"}));
+    const restored = normalizeScene(row({id:"10000000-0000-4000-8000-000000000044",scene_type:"NEXUS_RESTORED",payload:{eventKey:"NEXUS_RESTORED"},interrupt_policy:"force",created_at:"2026-11-27T15:01:40.000Z"}));
+    const duringFinale=queueDisplayScene({current:clue,pending:[warning]},finale);
+    expect(duringFinale).toEqual({current:finale,pending:[]});
+    expect(queueDisplayScene(duringFinale,clue)).toEqual(duringFinale);
+    expect(queueDisplayScene(duringFinale,restored)).toEqual({current:restored,pending:[]});
+    expect(sceneRendersVideo(finale)).toBe(true);
+    const twoMinutesAgo=new Date(Date.now()-120_000).toISOString();
+    expect(shouldAcceptScene(normalizeScene(row({scene_type:"GLITCH_DEFEATED",scheduled_at:twoMinutesAgo})),"30000000-0000-4000-8000-000000000001",new Set())).toBe(true);
+  });
 });

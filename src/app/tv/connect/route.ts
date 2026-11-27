@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {dispatchAudiovisualEvent} from "@/lib/audiovisual/dispatch";
+import {resolveMissionFinaleVideo} from "@/lib/tv/mission-finale";
 
 const noStore = { "Cache-Control": "no-store, private" };
 const denied = () => NextResponse.json({ error: "DISPLAY_SESSION_INVALID" }, { status: 401, headers: noStore });
@@ -37,12 +38,22 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
     ? scene.sound as Record<string, unknown>
     : {};
   const sound = { ...rawSound };
+  let videoPath = raw.videoPath;
+  let durationMs = scene.duration_ms;
+  if (scene.scene_type === "GLITCH_DEFEATED" && typeof scene.event_id === "string") {
+    const finalVideo = await resolveMissionFinaleVideo(supabase,scene.event_id);
+    if (finalVideo) {
+      videoPath = finalVideo.path;
+      if (finalVideo.durationMs) durationMs = finalVideo.durationMs;
+      payload.videoLoop = false;
+    }
+  }
 
   const [videoUrl, photoUrl, audioUrl, analysisUrl] = await Promise.all([
-    signedEventMediaUrl(supabase, raw.videoPath), signedPhotoUrl(supabase, raw.photoPath), signedEventMediaUrl(supabase, rawSound.path),
+    signedEventMediaUrl(supabase, videoPath), signedPhotoUrl(supabase, raw.photoPath), signedEventMediaUrl(supabase, rawSound.path),
     signedEventMediaUrl(supabase, rawSound.analysisPath),
   ]);
-  if (raw.videoPath) payload.videoUrl = videoUrl;
+  if (videoPath) payload.videoUrl = videoUrl;
   if (raw.photoPath) payload.photoUrl = photoUrl;
   if (rawSound.path) sound.url = audioUrl;
   if (rawSound.analysisPath) sound.analysisUrl = analysisUrl;
@@ -88,7 +99,7 @@ async function hydratePrivateMedia(supabase: ReturnType<typeof createAdminClient
   delete payload.photoPath;
   delete sound.path;
   delete sound.analysisPath;
-  return { ...scene, payload, sound };
+  return { ...scene, duration_ms: durationMs, payload, sound };
 }
 
 async function authenticate(request: NextRequest) {

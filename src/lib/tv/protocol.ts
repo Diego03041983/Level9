@@ -211,9 +211,16 @@ const sameNexusSession = (left: DisplayScene, right: DisplayScene) => {
 const uniqueScenes = (scenes: DisplayScene[]) => scenes.filter((scene, index, all) => all.findIndex(candidate => candidate.id === scene.id) === index);
 
 export function queueDisplayScene(state: DisplayPlaybackQueue, incoming: DisplayScene): DisplayPlaybackQueue {
+  if (state.current?.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;
+  if (incoming.scene_type === "GLITCH_DEFEATED" || incoming.payload.eventKey === "NEXUS_RESTORED") {
+    return { current: incoming, pending: [] };
+  }
   if (!state.current) return { current: incoming, pending: state.pending };
   const active = state.current;
-  if (active.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;
+  if (active.scene_type === "GLITCH_DEFEATED") {
+    if (compareDisplaySceneOrder(incoming, active) <= 0) return state;
+    return { current: active, pending: uniqueScenes([...state.pending, incoming]) };
+  }
 
   // Repeating the intervention replaces the previous attempt, never queues it
   // for an unexpected replay after the new Glitch film ends.
@@ -249,7 +256,7 @@ export function shouldAcceptScene(scene: DisplayScene, deviceId: string, process
   if (["played", "skipped", "expired", "failed", "cancelled"].includes(scene.status)) return false;
   const scheduled = Date.parse(scene.scheduled_at);
   if (!Number.isFinite(scheduled) || scheduled > now + 30_000) return false;
-  const maxAge = Math.max(scene.duration_ms ?? 30_000, 60_000);
+  const maxAge = scene.scene_type === "GLITCH_DEFEATED" ? 10 * 60_000 : Math.max(scene.duration_ms ?? 30_000, 60_000);
   return scheduled >= now - maxAge;
 }
 

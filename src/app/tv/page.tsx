@@ -89,7 +89,7 @@ export default function TvPage(){
       const watchdog=window.setTimeout(()=>setAudioEndedSceneId(current.id),30_000);
       return()=>clearTimeout(watchdog);
     }
-    const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneIsBreachSequence(current)?5000:pending.length?600:5000);
+    const timer=window.setTimeout(()=>finishScene(current,"completed"),current.scene_type==="GLITCH_DEFEATED"?250:sceneIsBreachSequence(current)?5000:pending.length?600:5000);
     return()=>clearTimeout(timer);
   },[audioEndedSceneId,current,finishScene,pending.length,playbackPaused,videoEndedSceneId]);
   const failVideo=useCallback((message:string)=>{if(!current)return;if(sceneIsBreachSequence(current)){setBreachFailure({sceneId:current.id,message});void acknowledge(current.id,"failed",message);return}finishScene(current,"failed",message)},[acknowledge,current,finishScene]);
