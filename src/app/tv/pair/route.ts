@@ -7,6 +7,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as { eventId?: string; name?: string };
     if (!body.eventId || !/^[0-9a-f-]{36}$/i.test(body.eventId)) return NextResponse.json({ error: "EVENT_ID_REQUIRED" }, { status: 400 });
+    const name=typeof body.name==="string"?body.name.trim():"";
+    if(!name||name.length>80)return NextResponse.json({error:"Ingresá un nombre de pantalla (máximo 80 caracteres)"},{status:400});
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
@@ -14,7 +16,7 @@ export async function POST(request: NextRequest) {
     if (!membership) return NextResponse.json({ error: "EVENT_ADMIN_REQUIRED" }, { status: 403 });
 
     const admin = createAdminClient(); const now = new Date();
-    const { data: device, error: deviceError } = await admin.from("display_devices").insert({ event_id: body.eventId, name: (body.name?.trim() || "Smart TV").slice(0, 80), linked_at: now.toISOString(), last_seen_at: null, audio_enabled: false }).select("id").single();
+    const { data: device, error: deviceError } = await admin.from("display_devices").insert({ event_id: body.eventId, name: name, linked_at: now.toISOString(), last_seen_at: null, audio_enabled: false }).select("id").single();
     if (deviceError || !device) throw deviceError ?? new Error("Device creation failed");
     const sessionToken = randomBytes(32).toString("base64url");
     const tokenHash = createHash("sha256").update(sessionToken).digest("hex");

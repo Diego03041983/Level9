@@ -1,0 +1,16 @@
+.nexus-space{position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(ellipse at 50% 38%,#12445f 0%,#0c2140 38%,#09142c 75%);color:#b8fbff}
+.nexus-aurora{position:absolute;inset:-30%;background:conic-gradient(from 20deg,transparent,#18658a33,transparent,#5445a633,transparent);animation:orbit 60s linear infinite}
+.nexus-grid{position:absolute;inset:50% -50% -70%;background-image:linear-gradient(#45eafa22 1px,transparent 1px),linear-gradient(90deg,#45eafa22 1px,transparent 1px);background-size:90px 90px;transform:perspective(400px) rotateX(60deg);mask-image:linear-gradient(transparent,#000 30%);animation:gridFlow 12s linear infinite}
+.nexus-system{position:absolute;left:50%;top:42%;width:min(58vh,500px);height:min(58vh,500px);transform:translate(-50%,-50%)}
+.nexus-orbit{position:absolute;inset:0;border:1px solid #60efff55;border-top:3px solid #64f3ff;border-bottom:3px solid #64f3ff;border-radius:50%;box-shadow:0 0 28px #26cfee22;animation:orbit 22s linear infinite}
+.nexus-orbit:before{content:'';position:absolute;left:49%;top:-5px;width:10px;height:10px;border-radius:50%;background:#baffff;box-shadow:0 0 16px #56edff}
+.nexus-second{inset:10%;border-color:#6cd7ff33;border-left:3px solid #ab94ff;border-right:3px solid #ab94ff;animation-direction:reverse;animation-duration:15s}
+.nexus-third{inset:21%;border-style:dashed;border-color:#72ecff88;animation-duration:35s}
+.nexus-core{position:absolute;inset:31%;border:1px solid #b9ffffaa;border-radius:24%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#9fffff,#2cabc3 45%,#175278);box-shadow:0 0 45px #3feeff77,inset 0 0 25px #b8ffff66;animation:breathe 5s ease-in-out infinite}
+.nexus-core>span{font-size:clamp(35px,6vh,65px);font-weight:900;color:#e8ffff;text-shadow:0 0 12px #fff8}.nexus-nine{font-size:.6em;color:#d3ffad}
+.nexus-pulse{position:absolute;inset:26%;border:1px solid #73efff;border-radius:50%;animation:transmit 5s ease-out infinite}
+.nexus-identity{position:absolute;top:76%;width:100%;text-align:center}.nexus-identity p{font-size:clamp(18px,3vh,32px);font-weight:800;letter-spacing:.3em}.nexus-identity>span{display:block;margin-top:12px;font-size:clamp(9px,1.4vh,14px);letter-spacing:.22em;color:#7fbacb}
+.nexus-signal{height:24px;display:flex;align-items:center;justify-content:center;gap:5px;margin-top:20px}.nexus-signal i{height:16px;width:3px;border-radius:3px;background:#7af2ff;animation:signal 2s ease-in-out infinite}
+.nexus-stars{position:absolute;inset:0}.nexus-stars i{position:absolute;width:3px;height:3px;border-radius:50%;background:#a0efff;animation:drift 10s ease-in-out infinite}
+@keyframes orbit{to{transform:rotate(360deg)}}@keyframes breathe{50%{transform:scale(1.06);opacity:.8}}@keyframes transmit{from{transform:scale(.8);opacity:.8}to{transform:scale(1.8);opacity:0}}@keyframes gridFlow{to{background-position:0 90px}}@keyframes signal{50%{transform:scaleY(.25);opacity:.35}}@keyframes drift{50%{transform:translateY(-25px);opacity:.2}}
+@media(prefers-reduced-motion:reduce){.nexus-space *{animation:none!important}}

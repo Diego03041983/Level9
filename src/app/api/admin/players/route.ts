@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const { supabase, event } = await requireAdminEvent(eventId);
     const search = request.nextUrl.searchParams.get("q")?.trim();
     let query = supabase.from("participants")
-      .select("id,first_name,last_name,gamer_tag,player_number,administrative_status,operational_status,arrived_at,departed_at,is_celebrant")
+      .select("id,first_name,last_name,gamer_tag,player_number,registration_status,administrative_status,operational_status,arrived_at,departed_at,is_celebrant")
       .eq("event_id", event.id).order("player_number");
     if (search) query = query.or(`first_name.ilike.%${search.replace(/[%_,()]/g, "")}%,last_name.ilike.%${search.replace(/[%_,()]/g, "")}%,gamer_tag.ilike.%${search.replace(/[%_,()]/g, "")}%`);
     const { data, error } = await query;
@@ -47,4 +47,16 @@ export async function PATCH(request: NextRequest) {
     });
     return Response.json({ player: data });
   } catch (error) { return adminErrorResponse(error); }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body=await request.json() as {eventId?:string;participantId?:string};
+    const eventId=eventIdSchema.safeParse(body.eventId), participantId=eventIdSchema.safeParse(body.participantId);
+    if(!eventId.success||!participantId.success)return Response.json({error:"Datos inválidos"},{status:400});
+    const {supabase,event}=await requireAdminEvent(eventId.data);
+    const {error}=await supabase.rpc("delete_event_player",{p_event_id:event.id,p_participant_id:participantId.data});
+    if(error)throw new AdminApiError(409,"DELETE_FAILED",error.message);
+    return Response.json({ok:true});
+  }catch(error){return adminErrorResponse(error)}
 }

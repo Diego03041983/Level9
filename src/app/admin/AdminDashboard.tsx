@@ -125,8 +125,10 @@ export function AdminDashboard({ eventId, eventName, eventSubtitle, eventEndsAt,
   };
 
   const createDisplayPairing = async () => {
+    const name=window.prompt("Nombre de la nueva pantalla (por ejemplo: TV salón)")?.trim();
+    if(!name)return;
     setBusy(true); setFeed("Creando vínculo seguro para Smart TV…");
-    const response = await fetch("/tv/pair", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({eventId,name:"Smart TV principal"}) });
+    const response = await fetch("/tv/pair", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({eventId,name}) });
     const data = await response.json() as {pairingUrl?:string;pairingCode?:string;error?:string}; setBusy(false);
     if(!response.ok||!data.pairingUrl){setFeed(`No se pudo vincular: ${data.error??"error desconocido"}`);return}
     setPairingUrl(data.pairingUrl);setPairingCode(data.pairingCode??"");setFeed("Código creado. Ingresalo una sola vez en la app Level 9 TV.");
