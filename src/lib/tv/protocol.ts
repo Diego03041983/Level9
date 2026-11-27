@@ -161,6 +161,19 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
   };
 }
 
+// An announcement may carry a character video even when its renderer shows
+// player photos or a bracket instead.
+export function sceneRendersVideo(scene: DisplayScene): boolean {
+  if (!scene.payload.videoUrl) return false;
+  const type = scene.scene_type.toUpperCase();
+  if (type.startsWith("NEXUS_")) return true;
+  if (type === "TOURNAMENT_BRACKET" && scene.payload.items?.length) return false;
+  if (type === "PLAYER_ROSTER" && scene.payload.players?.length && scene.payload.items?.length) return false;
+  if (type === "DUO_VERSUS_SCREEN" && (scene.payload.players?.length ?? 0) >= 4) return false;
+  if ((type === "VERSUS" || type === "VERSUS_SCREEN") && scene.payload.players?.length) return false;
+  return true;
+}
+
 const sceneTime = (scene: DisplayScene) => {
   const createdAt = Date.parse(scene.created_at);
   if (Number.isFinite(createdAt)) return createdAt;

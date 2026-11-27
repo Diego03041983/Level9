@@ -7,6 +7,7 @@ type TemplateSeed={key:string;name:string;category:AudiovisualCategory;character
 type Context={participantIds:string[];title?:string;subtitle?:string;activity?:string;station?:string;round?:string;extra?:Record<string,string|number|boolean|null>};
 type MediaRow={id:string;logical_key:string|null;storage_path:string;default_volume:number;metadata:unknown;status:string};
 type ParticipantAudioRow={participant_id:string;audio_role:string;status:string;media_assets:MediaRow|MediaRow[]|null};
+type ReceptionAudioRow={participant_id:string;media_assets:MediaRow|MediaRow[]|null};
 type TemplateRow={id:string;template_key:string;name:string;scene_type:string;priority:number;play_policy:PlayPolicy;character_name:string;post_scene_type:string|null};
 type SegmentRow={position:number;segment_type:SegmentKind;config:Record<string,unknown>;optional:boolean;volume:number};
 
@@ -82,18 +83,26 @@ export async function buildAnnouncement(supabase:SupabaseClient,eventId:string,t
   const {data:templateData,error:templateError}=await supabase.from("announcement_templates").select("id,template_key,name,scene_type,priority,play_policy,character_name,post_scene_type").eq("event_id",eventId).eq("template_key",templateKey).eq("enabled",true).maybeSingle();
   if(templateError||!templateData)throw templateError??new Error(`Plantilla ${templateKey} no disponible`);
   const template=templateData as unknown as TemplateRow;
-  const [{data:segmentData,error:segmentError},{data:mediaData},{data:participantData},{data:voiceData}]=await Promise.all([
+  const [{data:segmentData,error:segmentError},{data:mediaData},{data:participantData},{data:voiceData},{data:identityData,error:identityError}]=await Promise.all([
     supabase.from("announcement_segments").select("position,segment_type,config,optional,volume").eq("template_id",template.id).order("position"),
     supabase.from("media_assets").select("id,logical_key,storage_path,default_volume,metadata,status").eq("event_id",eventId).eq("status","active").not("logical_key","is",null),
     context.participantIds.length?supabase.from("participants").select("id,first_name,last_name,gamer_tag,player_number").eq("event_id",eventId).in("id",context.participantIds):Promise.resolve({data:[],error:null}),
     context.participantIds.length?supabase.from("participant_audio_assets").select("participant_id,audio_role,status,media_assets(id,logical_key,storage_path,default_volume,metadata,status)").eq("event_id",eventId).in("participant_id",context.participantIds).eq("status","active"):Promise.resolve({data:[],error:null}),
+    context.participantIds.length?supabase.from("reception_media_assignments").select("participant_id,media_assets(id,logical_key,storage_path,default_volume,metadata,status)").eq("event_id",eventId).eq("scene_key","IDENTITY_REVEAL").eq("media_kind","audio").in("participant_id",context.participantIds):Promise.resolve({data:[],error:null}),
   ]);
   if(segmentError)throw segmentError;
+  if(identityError)throw identityError;
   const segments=(segmentData??[]) as unknown as SegmentRow[];
   const media=new Map(((mediaData??[]) as unknown as MediaRow[]).map(asset=>[asset.logical_key,asset]));
   const participants=new Map((participantData??[]).map(item=>[String(item.id),item]));
   const voices=new Map<string,MediaRow>();
   for(const row of (voiceData??[]) as unknown as ParticipantAudioRow[]){const relation=Array.isArray(row.media_assets)?row.media_assets[0]:row.media_assets;if(relation)voices.set(`${row.participant_id}:${row.audio_role}`,relation)}
+  // Reception already has one personal identity WAV per guest. Reuse it for
+  // tournament names until a dedicated name recording is uploaded.
+  for(const row of (identityData??[]) as unknown as ReceptionAudioRow[]){
+    const relation=Array.isArray(row.media_assets)?row.media_assets[0]:row.media_assets;
+    if(relation?.status==="active"&&!voices.has(`${row.participant_id}:name`))voices.set(`${row.participant_id}:name`,relation);
+  }
   const sequence:AnnouncementSequenceItem[]=[];const missing:string[]=[];
   for(const segment of segments){
     if(segment.segment_type==="silence"){

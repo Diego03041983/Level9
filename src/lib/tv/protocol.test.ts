@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScene, parsePairing, queueDisplayScene, shouldAcceptScene, type DisplayScene } from "./protocol";
+import { normalizeScene, parsePairing, queueDisplayScene, sceneRendersVideo, shouldAcceptScene, type DisplayScene } from "./protocol";
 import type { SceneEventRow } from "@/types/database";
 
 const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
@@ -27,6 +27,11 @@ describe("TV protocol", () => {
     expect(scene.payload.firstName).toBe("Mateo");
     expect(scene.payload.videoLoop).toBe(true);
     expect(scene.sound).toMatchObject({url:"https://example.com/name.wav",cueMs:850,volume:.8});
+  });
+  it("starts audio for a FIFA photo announcement even if a character video is attached", () => {
+    const fifa = normalizeScene(row({scene_type:"VERSUS_SCREEN",payload:{videoUrl:"https://example.com/nexus.mp4",players:[{name:"Dante"},{name:"Felipe"}]}}));
+    expect(sceneRendersVideo(fifa)).toBe(false);
+    expect(sceneRendersVideo(normalizeScene(row({scene_type:"NEXUS_DETECTION",payload:{videoUrl:"https://example.com/intro.mp4"}})))).toBe(true);
   });
   it("normalizes safe composed audio sequences", () => {
     const scene = normalizeScene(row({sound:{sequence:[

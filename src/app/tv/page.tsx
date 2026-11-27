@@ -5,7 +5,7 @@ import Image from "next/image";
 import { AppShell } from "@/components/ui/AppShell";
 import { SceneRenderer } from "@/components/scenes/SceneRenderer";
 import { useAudioEngine } from "@/components/audio/useAudioEngine";
-import { compareDisplaySceneOrder, normalizeScene, PROCESSED_STORAGE_KEY, queueDisplayScene, shouldAcceptScene, type DisplayScene, type DisplayPlaybackQueue } from "@/lib/tv/protocol";
+import { compareDisplaySceneOrder, normalizeScene, PROCESSED_STORAGE_KEY, queueDisplayScene, sceneRendersVideo, shouldAcceptScene, type DisplayScene, type DisplayPlaybackQueue } from "@/lib/tv/protocol";
 import { useDisplayConnection } from "@/lib/tv/useDisplayConnection";
 import type { SceneEventRow } from "@/types/database";
 
@@ -51,13 +51,23 @@ export default function TvPage(){
     }
     // Mount the single real player immediately. Audio starts on its first playing event.
     let cancelled=false;
-    queueMicrotask(()=>{if(cancelled)return;setReadySceneId(current.id);if(!current.payload.videoUrl)beginPlayback()});
+    queueMicrotask(()=>{if(cancelled)return;setReadySceneId(current.id);if(!sceneRendersVideo(current))beginPlayback()});
     return ()=>{cancelled=true;stop()};
     // Scene identity owns the player lifecycle, not volume or pause changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[current?.id,started]);
 
-  useEffect(()=>{if(!started||!current||readySceneId!==current.id)return;const skipping=skipSignal>handledSkip.current;if(skipping){handledSkip.current=skipSignal;finishScene(current,"skipped");return}if(current.payload.videoUrl&&(!current.payload.videoLoop||playingSceneId!==current.id))return;if(sceneTimer.current.sceneId!==current.id)sceneTimer.current={sceneId:current.id,remainingMs:current.duration_ms??10_000};if(playbackPaused)return;const beganAt=Date.now();const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneTimer.current.remainingMs);return()=>{clearTimeout(timer);if(sceneTimer.current.sceneId===current.id)sceneTimer.current.remainingMs=Math.max(0,sceneTimer.current.remainingMs-(Date.now()-beganAt))}},[current,finishScene,playbackPaused,playingSceneId,readySceneId,skipSignal,started]);
+  useEffect(()=>{if(!started||!current||readySceneId!==current.id)return;const skipping=skipSignal>handledSkip.current;if(skipping){handledSkip.current=skipSignal;finishScene(current,"skipped");return}if(sceneRendersVideo(current)&&(!current.payload.videoLoop||playingSceneId!==current.id))return;if(!sceneRendersVideo(current)&&(current.sound.sequence?.length||(current.sound.url&&!current.sound.loop)))return;if(sceneTimer.current.sceneId!==current.id)sceneTimer.current={sceneId:current.id,remainingMs:current.duration_ms??10_000};if(playbackPaused)return;const beganAt=Date.now();const timer=window.setTimeout(()=>finishScene(current,"completed"),sceneTimer.current.remainingMs);return()=>{clearTimeout(timer);if(sceneTimer.current.sceneId===current.id)sceneTimer.current.remainingMs=Math.max(0,sceneTimer.current.remainingMs-(Date.now()-beganAt))}},[current,finishScene,playbackPaused,playingSceneId,readySceneId,skipSignal,started]);
+  useEffect(()=>{
+    if(!started||!current||readySceneId!==current.id||playbackPaused||sceneRendersVideo(current))return;
+    if(!current.sound.sequence?.length&&(!current.sound.url||current.sound.loop))return;
+    if(audioEndedSceneId===current.id){
+      const timer=window.setTimeout(()=>finishScene(current,"completed"),1200);
+      return()=>clearTimeout(timer);
+    }
+    const watchdog=window.setTimeout(()=>finishScene(current,"failed","El audio no terminó de reproducirse"),Math.max(30_000,(current.duration_ms??0)+15_000));
+    return()=>clearTimeout(watchdog);
+  },[audioEndedSceneId,current,finishScene,playbackPaused,readySceneId,started]);
   useEffect(()=>{if(!started||!pairing)return;void heartbeat(!muted);const interval=window.setInterval(()=>void heartbeat(!muted),15_000);return()=>clearInterval(interval)},[heartbeat,muted,pairing,started]);
   const start=useCallback(async()=>{try{await unlock();setStarted(true)}catch{setStarted(true)}},[unlock]);
   const finishVideo=useCallback(()=>{if(current)setVideoEndedSceneId(current.id)},[current]);
