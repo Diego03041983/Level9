@@ -65,6 +65,40 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
 
+    if (operation.operation === "activateGuestDirect") {
+      const {data:player,error:playerError}=await supabase.from("participants")
+        .select("id,registration_status,administrative_status,arrived_at,activated_at")
+        .eq("id",operation.participantId).eq("event_id",event.id).maybeSingle();
+      if(playerError||!player)throw new AdminApiError(404,"NOT_FOUND","Jugador inexistente");
+      if(player.registration_status==="CANCELLED"||player.administrative_status==="withdrawn")throw new AdminApiError(409,"INVALID_STATE","Este jugador fue desactivado. Revisá su estado antes de habilitarlo");
+      const {count,error:sessionError}=await supabase.from("reception_sessions")
+        .select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("participant_id",player.id).in("status",["active","paused"]);
+      if(sessionError)throw new AdminApiError(500,"SESSION_READ_FAILED","No se pudo comprobar el protocolo del jugador");
+      if((count??0)>0)throw new AdminApiError(409,"ACTIVE_SESSION","Terminá o cancelá el protocolo en curso antes de activar al jugador directamente");
+      if(player.registration_status!=="ACTIVATED"||player.administrative_status!=="active"){
+        const now=new Date().toISOString();
+        const {data:activated,error}=await supabase.from("participants").update({
+          registration_status:"ACTIVATED",administrative_status:"active",operational_status:"available",
+          activated_at:player.activated_at??now,arrived_at:player.arrived_at??now,departed_at:null,
+        }).eq("id",player.id).eq("event_id",event.id).neq("registration_status","CANCELLED")
+          .select("id,first_name,registration_status,administrative_status").maybeSingle();
+        if(error||!activated)throw new AdminApiError(409,"ACTIVATION_FAILED","No se pudo activar al jugador");
+      }
+      const {data:activities,error:activitiesError}=await supabase.from("activities").select("id").eq("event_id",event.id).eq("enabled",true);
+      if(activitiesError)throw new AdminApiError(500,"ACTIVITY_READ_FAILED","El jugador se activó, pero no se pudieron cargar sus actividades");
+      if(activities?.length){const {error:preferencesError}=await supabase.from("participant_activity_preferences").upsert(
+        activities.map(activity=>({participant_id:player.id,activity_id:activity.id,enabled:true})),{onConflict:"participant_id,activity_id"});
+        if(preferencesError)throw new AdminApiError(500,"PREFERENCES_FAILED","El jugador se activó, pero no se pudieron asignar sus actividades");
+      }
+      const {error:xpError}=await supabase.from("xp_transactions").upsert({
+        event_id:event.id,participant_id:player.id,amount:100,reason_code:"NEXUS_ACTIVATION",
+        reason:"Activación directa sin videos",idempotency_key:`nexus-activation:${player.id}`,
+        source_type:"participant",source_id:player.id,created_by:userId,
+      },{onConflict:"event_id,idempotency_key",ignoreDuplicates:true});
+      if(xpError)throw new AdminApiError(500,"XP_FAILED","El jugador se activó, pero no se pudo registrar su XP");
+      return Response.json({activated:true});
+    }
+
     if (operation.operation === "start") {
       const key = `reception-start:${operation.participantId}:${randomUUID()}`;
       const { data, error } = await supabase.rpc("start_reception_session", {

@@ -21,6 +21,11 @@ describe("NEXUS reception contracts", () => {
     expect(receptionOperationSchema.safeParse({operation:"control",eventId,sessionId:participantId,expectedVersion:0,action:"advance"}).success).toBe(false);
   });
 
+  it("accepts direct activation for one existing player", () => {
+    expect(receptionOperationSchema.safeParse({operation:"activateGuestDirect",eventId,participantId}).success).toBe(true);
+    expect(receptionOperationSchema.safeParse({operation:"activateGuestDirect",eventId,participantId:"other"}).success).toBe(false);
+  });
+
   it("accepts only configured media bounds", () => {
     const media = receptionMediaSchema.parse({eventId,sceneKey:"IDENTITY_REVEAL",mediaKind:"audio",cueMs:"900",loop:"false",volume:"0.8",durationMs:"3200"});
     expect(media.cueMs).toBe(900);

@@ -14,6 +14,7 @@ export const receptionOperationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("importGuests"), eventId: uuid, guests: z.array(guest).min(1).max(200) }),
   z.object({ operation: z.literal("updateGuest"), eventId: uuid, participantId: uuid, guest }),
   z.object({ operation: z.literal("cancelGuest"), eventId: uuid, participantId: uuid }),
+  z.object({ operation: z.literal("activateGuestDirect"), eventId: uuid, participantId: uuid }),
   z.object({ operation: z.literal("start"), eventId: uuid, participantId: uuid, displayDeviceId: uuid.nullable(), mode: z.enum(["full", "quick", "demo"]).default("full") }),
   z.object({
     operation: z.literal("control"), eventId: uuid, sessionId: uuid, expectedVersion: z.number().int().positive(),
