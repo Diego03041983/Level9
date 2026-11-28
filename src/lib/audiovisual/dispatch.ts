@@ -51,8 +51,11 @@ export async function dispatchAudiovisualEvent(supabase:SupabaseClient,input:Dis
     if(!mission){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Misión sin configurar"}).eq("id",eventRecord.id);throw new Error("Configurá primero la misión")}
     const{data:slots}=await supabase.from("mission_digit_slots").select("slot,team_id").eq("mission_id",mission.id);
     if(slots?.length!==4||slots.some(slot=>!slot.team_id)){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Faltan equipos"}).eq("id",eventRecord.id);throw new Error("Asigná los cuatro equipos antes de comenzar")}
-    const{data:members}=await supabase.from("team_members").select("team_id").in("team_id",slots.map(slot=>slot.team_id!));
-    if(slots.some(slot=>!members?.some(member=>member.team_id===slot.team_id))){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Equipos sin integrantes"}).eq("id",eventRecord.id);throw new Error("Cada equipo necesita al menos un jugador")}
+    const{data:members}=await supabase.from("team_members").select("team_id,participant_id").in("team_id",slots.map(slot=>slot.team_id!));
+    const memberIds=[...new Set((members??[]).map(member=>member.participant_id))];
+    const{data:activePlayers}=memberIds.length?await supabase.from("participants").select("id").eq("event_id",input.eventId).eq("administrative_status","active").eq("registration_status","ACTIVATED").in("id",memberIds):{data:[]};
+    const activeIds=new Set((activePlayers??[]).map(player=>player.id));
+    if(slots.some(slot=>!members?.some(member=>member.team_id===slot.team_id&&activeIds.has(member.participant_id)))){await supabase.from("audiovisual_events").update({status:"failed",error_message:"Equipos sin jugadores activados"}).eq("id",eventRecord.id);throw new Error("Cada equipo necesita al menos un jugador activado")}
   }
   if(definition.policy==="replace_equivalent" || input.eventKey==="MISSION_BREACH"){
     const {data:older}=await supabase.from("audiovisual_events").select("scene_event_id").eq("event_id",input.eventId).eq("event_key",input.eventKey).in("status",["queued","playing"]).neq("id",eventRecord.id);

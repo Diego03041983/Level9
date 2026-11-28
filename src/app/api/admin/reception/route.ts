@@ -65,6 +65,12 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
 
+    if (operation.operation === "resetActivatedGuests") {
+      const { data: resetCount, error } = await supabase.rpc("reset_event_player_activations", { p_event_id: event.id });
+      if (error) throw new AdminApiError(409, "RESET_FAILED", error.message);
+      return Response.json({ resetCount: Number(resetCount ?? 0) }, { headers: noStore });
+    }
+
     if (operation.operation === "activateGuestDirect") {
       const {data:player,error:playerError}=await supabase.from("participants")
         .select("id,registration_status,administrative_status,arrived_at,activated_at")
