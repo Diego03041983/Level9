@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScene, parsePairing, queueDisplayScene, sceneRendersVideo, sceneUsesNexusFace, shouldAcceptScene, type DisplayScene } from "./protocol";
+import { clearCompetitionScenes, normalizeScene, parsePairing, queueDisplayScene, sceneRendersVideo, sceneUsesNexusFace, shouldAcceptScene, type DisplayScene } from "./protocol";
 import { audiovisualEventCatalog } from "../audiovisual/catalog";
 import type { SceneEventRow } from "@/types/database";
 
@@ -11,6 +11,15 @@ const row = (overrides: Partial<SceneEventRow> = {}): SceneEventRow => ({
 });
 
 describe("TV protocol", () => {
+  it("clears competition announcements without stopping a mission scene", () => {
+    const mission = normalizeScene(row({id:"10000000-0000-4000-8000-000000000051",scene_type:"MISSION_ALERT",payload:{eventKey:"MISSION_WARNING"}}));
+    const fifa = normalizeScene(row({id:"10000000-0000-4000-8000-000000000052",scene_type:"VERSUS_SCREEN",payload:{eventKey:"MATCH_CALLED"}}));
+    const roblox = normalizeScene(row({id:"10000000-0000-4000-8000-000000000053",scene_type:"PLAYER_ROSTER",payload:{eventKey:"ROBLOX_PLAYERS_CALLED"}}));
+    const bracket = normalizeScene(row({id:"10000000-0000-4000-8000-000000000054",scene_type:"TOURNAMENT_BRACKET",idempotency_key:"draw:old-bracket"}));
+    expect(clearCompetitionScenes({current:mission,pending:[fifa,roblox,bracket]})).toEqual({current:mission,pending:[]});
+    expect(clearCompetitionScenes({current:fifa,pending:[roblox,mission,bracket]})).toEqual({current:mission,pending:[]});
+    expect(normalizeScene(row({scene_type:"DISPLAY_COMMAND",payload:{action:"clear_competitions"}})).payload.action).toBe("clear_competitions");
+  });
   it("replaces an old Glitch attempt and ignores late delivery of that attempt", () => {
     const old = normalizeScene(row({ payload: { eventKey: "MISSION_BREACH" }, created_at: "2026-11-27T12:00:00Z" }));
     const next = normalizeScene(row({ id: "10000000-0000-4000-8000-000000000099", payload: { eventKey: "MISSION_BREACH", breachSequence: true }, created_at: "2026-11-27T12:01:00Z" }));

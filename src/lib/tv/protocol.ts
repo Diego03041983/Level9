@@ -1,5 +1,5 @@
 import type { Json, SceneEventRow } from "@/types/database";
-import { usesNexusFace } from "../audiovisual/catalog";
+import { findEventDefinition, usesNexusFace } from "../audiovisual/catalog";
 
 export const PAIRING_STORAGE_KEY = "level9.display.pairing.v1";
 export const PROCESSED_STORAGE_KEY = "level9.display.processed.v1";
@@ -43,7 +43,7 @@ export interface ScenePayload {
   state?: string;
   enabled?: boolean;
   volume?: number;
-  action?: "pause" | "resume" | "skip" | "clear_queue" | "stop" | "home";
+  action?: "pause" | "resume" | "skip" | "clear_queue" | "clear_competitions" | "stop" | "home";
   items?: string[];
 }
 
@@ -147,7 +147,7 @@ export function normalizeScene(row: SceneEventRow): DisplayScene {
       state: typeof raw.state === "string" ? raw.state.slice(0, 80) : undefined,
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : undefined,
       volume: typeof raw.volume === "number" ? Math.min(1, Math.max(0, raw.volume)) : undefined,
-      action: ["pause","resume","skip","clear_queue","stop","home"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
+      action: ["pause","resume","skip","clear_queue","clear_competitions","stop","home"].includes(String(raw.action)) ? raw.action as ScenePayload["action"] : undefined,
       items: Array.isArray(raw.items) ? raw.items.filter((item):item is string=>typeof item==="string").slice(0,32).map(item=>item.slice(0,100)) : undefined,
       player: player(raw.player),
       winner: player(raw.winner),
@@ -209,6 +209,19 @@ const sameNexusSession = (left: DisplayScene, right: DisplayScene) => {
 };
 
 const uniqueScenes = (scenes: DisplayScene[]) => scenes.filter((scene, index, all) => all.findIndex(candidate => candidate.id === scene.id) === index);
+
+export function isCompetitionScene(scene: DisplayScene): boolean {
+  if (scene.scene_type === "TOURNAMENT_BRACKET" && scene.idempotency_key.startsWith("draw:")) return true;
+  const category = findEventDefinition(scene.payload.eventKey ?? "")?.category;
+  return category === "competitions" || category === "roblox";
+}
+
+export function clearCompetitionScenes(state: DisplayPlaybackQueue): DisplayPlaybackQueue {
+  const pending = state.pending.filter(scene => !isCompetitionScene(scene));
+  if (!state.current || !isCompetitionScene(state.current)) return { current: state.current, pending };
+  const [next, ...remaining] = pending;
+  return { current: next ?? null, pending: remaining };
+}
 
 export function queueDisplayScene(state: DisplayPlaybackQueue, incoming: DisplayScene): DisplayPlaybackQueue {
   if (state.current?.id === incoming.id || state.pending.some(scene => scene.id === incoming.id)) return state;

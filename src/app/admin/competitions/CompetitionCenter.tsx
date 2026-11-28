@@ -80,6 +80,13 @@ export function CompetitionCenter(){
     }catch(error){setMessage(error instanceof Error?error.message:"Error inesperado");return null}
     finally{setBusy(false)}
   };
+  const reset=async()=>{
+    if(!data||!window.confirm("¿Reiniciar todas las competencias de este evento? Se borrarán selecciones, sorteos, torneos, grupos y resultados de FIFA, Metegol y Roblox. Se conservarán jugadores, misión y archivos."))return;
+    const result=await post({action:"reset"});
+    if(!result)return;
+    setSelected([]);setPreview(null);setScores({});setGroupChoice([]);setAllowRepeat(false);setComparison("standard");
+    setMessage("Competencias reiniciadas. Ya podés elegir jugadores y hacer nuevos sorteos.");
+  };
   const playerName=(id:string)=>{const player=data?.players.find(item=>item.id===id);return player?.gamer_tag||player?.first_name||"Jugador"};
   const active=data?.players.filter(item=>item.administrative_status==="active"&&item.registration_status==="ACTIVATED")??[];
   const roster=data?.rosters.filter(item=>item.activity_id===activityId&&item.discipline===rosterDiscipline).map(item=>item.participant_id)??[];
@@ -171,6 +178,7 @@ export function CompetitionCenter(){
     <Link href="/admin" className="text-xs font-bold text-cyan-300">← Control</Link>
     <p className="eyebrow mt-4">Organización simultánea · {data?.event.name}</p><h1 className="display-title mt-2 text-5xl">COMPETENCIAS</h1>
     <p role="status" className="mt-3 text-sm text-slate-300">{message}</p>
+    <section className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-300/25 bg-orange-300/5 p-4"><div><b className="text-sm text-orange-100">Reiniciar competencias</b><p className="mt-1 text-xs text-slate-400">Borra selecciones, sorteos, partidos y resultados de FIFA, Metegol y Roblox. Conserva jugadores, misión y archivos.</p></div><button type="button" disabled={busy||!data} onClick={()=>void reset()} className="rounded-lg border border-orange-300/50 px-4 py-3 text-xs font-black text-orange-100 hover:bg-orange-300/10 disabled:opacity-50">↺ VOLVER TODO A CERO</button></section>
     <div className="mt-6 grid gap-3 md:grid-cols-3">{data?.activities.map(item=><button key={item.id} onClick={()=>{setActivityId(item.id);if(item.activity_type==="roblox"&&Array.isArray(item.rules.robloxPoints))setScaleText(item.rules.robloxPoints.join(","))}} className={`panel cut p-4 text-left font-black ${activityId===item.id?"!border-cyan-300 text-cyan-200":""}`}>{item.name}<small className="mt-1 block font-normal text-slate-400">{item.activity_type==="fifa"?"1 contra 1 · PlayStation":item.activity_type==="foosball"?"2 contra 2 · Metegol":"Hasta 3 jugadores · computadoras"}</small></button>)}</div>
     <div className="mt-6 grid gap-6 xl:grid-cols-2">
       <section className="panel cut p-5"><h2 className="text-xl font-black">1. Elegir participantes</h2>

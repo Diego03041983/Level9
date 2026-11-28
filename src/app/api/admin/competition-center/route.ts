@@ -7,6 +7,7 @@ import { dispatchAudiovisualEvent } from "@/lib/audiovisual/dispatch";
 const id=z.uuid();
 const discipline=z.enum(["epic-minigames","natural-disaster-survival","speed-run-4","super-golf"]);
 const requestSchema=z.discriminatedUnion("action",[
+  z.object({action:z.literal("reset"),eventId:id}),
   z.object({action:z.literal("roster"),eventId:id,activityId:id,discipline:z.enum(["main",...discipline.options]),participantIds:z.array(id).max(64)}),
   z.object({action:z.literal("tournament"),eventId:id,activityId:id,name:z.string().trim().min(1).max(120),orderedIds:z.array(id).min(2).max(64)}),
   z.object({action:z.literal("callMatch"),eventId:id,matchId:id}),
@@ -81,6 +82,11 @@ export async function POST(request:Request){
     if(!parsed.success)return Response.json({error:parsed.error.issues[0]?.message??"Datos inválidos"},{status:400});
     const input=parsed.data;
     const {supabase,event,userId}=await requireAdminEvent(input.eventId);
+    if(input.action==="reset"){
+      const {error}=await supabase.rpc("reset_event_competitions",{p_event_id:event.id});
+      if(error)throw new AdminApiError(409,"RESET_REJECTED","No se pudieron reiniciar las competencias: "+error.message);
+      return Response.json({reset:true});
+    }
     if(input.action==="roster"){
       const {error}=await supabase.rpc("set_competition_roster",{p_event_id:event.id,p_activity_id:input.activityId,p_discipline:input.discipline,p_participant_ids:input.participantIds});
       if(error)throw new AdminApiError(409,"ROSTER_REJECTED",error.message);
