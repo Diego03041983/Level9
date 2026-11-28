@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const { data: asset, error: assetError } = await supabase.from("media_assets").insert({
       event_id: event.id, name: `nexus-${parsed.data.sceneKey.toLowerCase()}-${parsed.data.mediaKind}`,
       asset_type: isVideo ? "video" : "audio", storage_path: uploadedPath, mime_type: mimeType,
-      metadata: { durationMs: parsed.data.durationMs, source: "nexus-reception" }, created_by: userId,
+      metadata: { durationMs: parsed.data.durationMs, embeddedAudio: isVideo && parsed.data.embeddedAudio, source: "nexus-reception" }, created_by: userId,
     }).select("id").single();
     if (assetError || !asset) throw new AdminApiError(409, "ASSET_FAILED", "No se pudo registrar el recurso");
     createdAssetId = asset.id;

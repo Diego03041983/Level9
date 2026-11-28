@@ -30,6 +30,8 @@ describe("NEXUS reception contracts", () => {
     const media = receptionMediaSchema.parse({eventId,sceneKey:"IDENTITY_REVEAL",mediaKind:"audio",cueMs:"900",loop:"false",volume:"0.8",durationMs:"3200"});
     expect(media.cueMs).toBe(900);
     expect(media.volume).toBe(.8);
+    expect(media.embeddedAudio).toBe(false);
+    expect(receptionMediaSchema.parse({eventId,sceneKey:"DETECTION",mediaKind:"video",embeddedAudio:true}).embeddedAudio).toBe(true);
     expect(receptionMediaSchema.safeParse({eventId,sceneKey:"bad key",mediaKind:"video"}).success).toBe(false);
   });
 

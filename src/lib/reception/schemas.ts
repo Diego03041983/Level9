@@ -33,6 +33,7 @@ export const receptionMediaSchema = z.object({
   loop: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   volume: z.coerce.number().min(0).max(1).default(1),
   durationMs: z.coerce.number().int().min(0).max(600000).default(0),
+  embeddedAudio: z.boolean().default(false),
 });
 
 export const receptionStateSchema = z.enum(receptionStates);
