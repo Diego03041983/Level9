@@ -1,6 +1,7 @@
 import {createHmac, randomInt, timingSafeEqual} from "node:crypto";
 import {z} from "zod";
 import {createAdminClient} from "@/lib/supabase/admin";
+import {missionRemainingSeconds} from "@/lib/mission/timing";
 
 const noStore={"Cache-Control":"private, no-store"};
 const schema=z.object({missionId:z.uuid(),slot:z.number().int().min(1).max(4),action:z.enum(["unlock","sequence","flip"]),answer:z.string().max(32).optional(),index:z.number().int().min(0).max(47).optional()});
@@ -35,14 +36,14 @@ function present(state:State){
 async function missionFor(id?:string){
   const db=createAdminClient();
   if(id){
-    const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id").eq("id",id).maybeSingle();
+    const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id,duration_seconds,extension_seconds,started_at,paused_at,paused_seconds,unlocked_at,completed_at").eq("id",id).maybeSingle();
     if(!mission)return null;
     const {data:event}=await db.from("events").select("id").eq("id",mission.event_id).eq("is_demo",false).maybeSingle();
     return event?mission:null;
   }
   const {data:event}=await db.from("events").select("id").eq("is_demo",false).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(!event)return null;
-  const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id").eq("event_id",event.id)
+  const {data:mission}=await db.from("missions").select("id,event_id,status,name,challenge_run_id,duration_seconds,extension_seconds,started_at,paused_at,paused_seconds,unlocked_at,completed_at").eq("event_id",event.id)
     .in("status",["ready","live","paused","unlocked","finished"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
   return mission;
 }
@@ -81,7 +82,7 @@ export async function GET(request:Request){
     }
     const {data:slots,error}=await createAdminClient().from("mission_digit_slots").select("slot,team_id,digit").eq("mission_id",mission.id).order("slot");
     if(error)throw error;
-    return Response.json({mission:{id:mission.id,name:mission.name,status:mission.status},teams:names.map((name,index)=>({slot:index+1,name,assigned:Boolean(slots?.find(item=>item.slot===index+1)?.team_id),complete:Boolean(slots?.find(item=>item.slot===index+1)?.digit)}))},{headers:noStore});
+    return Response.json({mission:{id:mission.id,name:mission.name,status:mission.status,runId:mission.challenge_run_id,remainingSeconds:missionRemainingSeconds(mission)},teams:names.map((name,index)=>({slot:index+1,name,assigned:Boolean(slots?.find(item=>item.slot===index+1)?.team_id),complete:Boolean(slots?.find(item=>item.slot===index+1)?.digit)}))},{headers:noStore});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Error del servidor"},{status:500,headers:noStore})}
 }
 
