@@ -15,7 +15,7 @@ const requestSchema=z.discriminatedUnion("action",[
   z.object({action:z.literal("startMatch"),eventId:id,matchId:id}),
   z.object({action:z.literal("finishMatch"),eventId:id,matchId:id,winnerEntryId:id,homeScore:z.number().int().min(0).max(99),awayScore:z.number().int().min(0).max(99),expectedVersion:z.number().int().positive()}),
   z.object({action:z.literal("announceDraw"),eventId:id,tournamentId:id}),
-  z.object({action:z.literal("startRoblox"),eventId:id,activityId:id,discipline,participantIds:z.array(id).min(1).max(3),comparisonKey:z.string().trim().max(80).default("standard"),allowRepeat:z.boolean().default(false)}),
+  z.object({action:z.literal("startRoblox"),eventId:id,activityId:id,discipline,participantIds:z.array(id).min(2,"Seleccioná al menos dos jugadores para competir").max(3),comparisonKey:z.string().trim().max(80).default("standard"),allowRepeat:z.boolean().default(false)}),
   z.object({action:z.literal("finishRoblox"),eventId:id,groupId:id,scores:z.array(z.object({participantId:id,score:z.number().min(0).max(999999)})).min(1).max(3)}),
   z.object({action:z.literal("scoreScale"),eventId:id,activityId:id,points:z.array(z.number().int().min(0).max(1000)).min(1).max(64)}),
 ]);
