@@ -46,7 +46,7 @@ export function MissionTeamCard({slot,name,participants,assigned,occupiedBy,busy
         </button>;
       })}
     </div>
-    <button type="button" disabled={busy||!changed} onClick={()=>void save()} className="ghost-action mt-3 px-4 py-2 disabled:opacity-40">{selected.length?`Guardar ${selected.length} ${selected.length===1?"integrante":"integrantes"}`:"Vaciar equipo"}</button>
+    <button type="button" disabled={busy||!changed} onClick={()=>void save()} className="ghost-action mt-3 px-4 py-2 disabled:opacity-40">{!changed?"Asignación ya guardada":selected.length?`Guardar ${selected.length} ${selected.length===1?"integrante":"integrantes"}`:"Vaciar equipo"}</button>
     {status&&<p role="status" className="mt-2 text-xs text-cyan-200">{status}</p>}
   </section>;
 }
