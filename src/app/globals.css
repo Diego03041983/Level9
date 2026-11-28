@@ -19,6 +19,16 @@ button,input { font:inherit; } button { cursor:pointer; } ::selection { backgrou
 .primary-action:hover { transform:translateY(-2px); box-shadow:0 0 36px rgb(0 217 255/42%); } .primary-action:active { transform:translateY(1px) scale(.99); }
 .ghost-action { border:1px solid rgb(145 164 204/25%); border-radius:6px; color:var(--text); background:rgb(255 255 255/3%); font-weight:800; transition:border-color .18s ease,background .18s ease; }
 .ghost-action:hover { border-color:rgb(0 217 255/65%); background:rgb(0 217 255/7%); }
+.admin-shell :is(main,section,article,aside,details) { min-width:0; }
+.admin-shell :is(h1,h2,h3,p,small,code) { overflow-wrap:anywhere; }
+.admin-shell :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) { max-width:100%; min-width:0; }
+@media (max-width:639px) {
+  .admin-shell .grid:not([class*=" grid-cols-"]) { grid-template-columns:minmax(0,1fr); }
+  .admin-shell .display-title { font-size:clamp(2rem,9vw,3rem); line-height:1; }
+  .admin-shell .eyebrow { letter-spacing:.12em; }
+  .admin-shell :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) { font-size:16px; }
+  .admin-shell :is(.primary-action,.ghost-action) { min-height:44px; }
+}
 .scanline { position:relative; overflow:hidden; } .scanline::after { position:absolute; left:0; right:0; height:2px; content:""; background:linear-gradient(90deg,transparent,var(--cyan),transparent); box-shadow:0 0 14px var(--cyan); animation:scan 3.8s linear infinite; }
 .pulse-ring { animation:pulse-ring 2.4s ease-out infinite; } .float { animation:float 5s ease-in-out infinite; }
 @keyframes scan { from { top:-2%; } to { top:102%; } } @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } } @keyframes pulse-ring { 0% { box-shadow:0 0 0 0 rgb(0 217 255/35%); } 80%,100% { box-shadow:0 0 0 24px transparent; } }
